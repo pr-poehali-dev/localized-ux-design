@@ -158,8 +158,261 @@ function HotkeyHint({ keys, label }: { keys: string; label: string }) {
   );
 }
 
+// ============ DASHBOARD SUB-VIEWS ============
+
+type DashView = "main" | "all_orders" | "in_work" | "ready" | "urgent";
+
+function DashAllOrders({ orders, onBack }: { orders: Order[]; onBack: () => void }) {
+  return (
+    <div className="animate-fade-in">
+      <div className="flex items-center gap-3 mb-4">
+        <button onClick={onBack} className="neon-btn px-3 py-1.5 rounded flex items-center gap-2" style={{ fontSize: 12 }}>
+          <Icon name="ArrowLeft" size={14} style={{ color: "var(--neon-cyan)" }} />
+          Назад
+        </button>
+        <h2 style={{ fontFamily: "'Times New Roman', serif", fontSize: 18, color: "var(--neon-cyan)", textShadow: "var(--neon-glow)" }}>
+          Все заказы <span style={{ fontSize: 13, color: "rgba(100,150,220,0.6)" }}>— {orders.length} шт.</span>
+        </h2>
+      </div>
+      <div className="card-dark rounded-lg overflow-hidden">
+        <table className="table-neon w-full">
+          <thead><tr><th>Номер</th><th>Клиент</th><th>Устройство</th><th>Мастер</th><th>Создан</th><th>Срок</th><th>Стоимость</th><th>Статус</th></tr></thead>
+          <tbody>
+            {orders.map(o => (
+              <tr key={o.id}>
+                <td style={{ color: "#60aaff", fontWeight: 600 }}>{o.id}</td>
+                <td>{o.client}</td>
+                <td>{o.device}</td>
+                <td>{o.master}</td>
+                <td>{o.created}</td>
+                <td>{o.deadline}</td>
+                <td style={{ color: "#3ddc84" }}>{o.cost.toLocaleString("ru-RU")} ₽</td>
+                <td><span className={`status-badge ${STATUS_CLASS[o.status]}`}>{STATUS_LABELS[o.status]}</span></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+function DashInWork({ orders, onBack }: { orders: Order[]; onBack: () => void }) {
+  const busyMasters = DEMO_STAFF.filter(s => s.ordersActive > 0);
+  const freeMasters = DEMO_STAFF.filter(s => s.ordersActive === 0);
+  const activeOrders = orders.filter(o => o.status === "progress" || o.status === "new");
+
+  return (
+    <div className="animate-fade-in">
+      <div className="flex items-center gap-3 mb-4">
+        <button onClick={onBack} className="neon-btn px-3 py-1.5 rounded flex items-center gap-2" style={{ fontSize: 12 }}>
+          <Icon name="ArrowLeft" size={14} style={{ color: "var(--neon-cyan)" }} />
+          Назад
+        </button>
+        <h2 style={{ fontFamily: "'Times New Roman', serif", fontSize: 18, color: "var(--neon-cyan)", textShadow: "var(--neon-glow)" }}>
+          В работе <span style={{ fontSize: 13, color: "rgba(100,150,220,0.6)" }}>— {activeOrders.length} заказов</span>
+        </h2>
+      </div>
+      <div className="grid gap-4 mb-5" style={{ gridTemplateColumns: "1fr 1fr" }}>
+        {/* Свободные — слева */}
+        <div className="card-dark rounded-lg p-4" style={{ borderColor: "rgba(61,220,132,0.35)", boxShadow: "0 0 12px rgba(61,220,132,0.1)" }}>
+          <div className="flex items-center gap-2 mb-4">
+            <Icon name="UserCheck" size={16} style={{ color: "#3ddc84" }} />
+            <h3 style={{ fontFamily: "'Times New Roman', serif", fontSize: 14, color: "#3ddc84", textShadow: "0 0 8px rgba(61,220,132,0.4)" }}>
+              Свободны <span style={{ fontSize: 11, color: "rgba(61,220,132,0.6)" }}>({freeMasters.length})</span>
+            </h3>
+          </div>
+          {freeMasters.length === 0 ? (
+            <div style={{ fontSize: 12, color: "rgba(100,140,200,0.5)", textAlign: "center", padding: "20px 0" }}>Все мастера заняты</div>
+          ) : freeMasters.map(s => (
+            <div key={s.id} className="flex items-center gap-3 py-3" style={{ borderBottom: "1px solid rgba(0,100,255,0.1)" }}>
+              <div style={{ width: 38, height: 38, borderRadius: "50%", background: "rgba(61,220,132,0.12)", border: "1px solid rgba(61,220,132,0.3)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                <Icon name="User" size={16} style={{ color: "#3ddc84" }} />
+              </div>
+              <div>
+                <div style={{ fontSize: 12, color: "rgba(200,230,255,0.9)", fontFamily: "'Times New Roman', serif" }}>{s.name}</div>
+                <div style={{ fontSize: 10, color: "rgba(61,220,132,0.7)", marginTop: 1 }}>{s.role} · ★ {s.rating}</div>
+              </div>
+              <div style={{ marginLeft: "auto", background: "rgba(61,220,132,0.12)", border: "1px solid rgba(61,220,132,0.3)", borderRadius: 12, padding: "2px 10px", fontSize: 10, color: "#3ddc84" }}>Свободен</div>
+            </div>
+          ))}
+        </div>
+
+        {/* Занятые — справа */}
+        <div className="card-dark rounded-lg p-4" style={{ borderColor: "rgba(255,184,48,0.3)", boxShadow: "0 0 12px rgba(255,184,48,0.08)" }}>
+          <div className="flex items-center gap-2 mb-4">
+            <Icon name="UserCog" size={16} style={{ color: "#ffb830" }} />
+            <h3 style={{ fontFamily: "'Times New Roman', serif", fontSize: 14, color: "#ffb830", textShadow: "0 0 8px rgba(255,184,48,0.4)" }}>
+              Заняты <span style={{ fontSize: 11, color: "rgba(255,184,48,0.6)" }}>({busyMasters.length})</span>
+            </h3>
+          </div>
+          {busyMasters.map(s => {
+            const theirOrders = activeOrders.filter(o => o.master.startsWith(s.name.split(" ")[0]));
+            return (
+              <div key={s.id} className="py-3" style={{ borderBottom: "1px solid rgba(0,100,255,0.1)" }}>
+                <div className="flex items-center gap-3 mb-2">
+                  <div style={{ width: 38, height: 38, borderRadius: "50%", background: "rgba(255,184,48,0.12)", border: "1px solid rgba(255,184,48,0.3)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                    <Icon name="User" size={16} style={{ color: "#ffb830" }} />
+                  </div>
+                  <div>
+                    <div style={{ fontSize: 12, color: "rgba(200,230,255,0.9)", fontFamily: "'Times New Roman', serif" }}>{s.name}</div>
+                    <div style={{ fontSize: 10, color: "rgba(255,184,48,0.7)", marginTop: 1 }}>{s.role} · {s.ordersActive} активных</div>
+                  </div>
+                  <div style={{ marginLeft: "auto", background: "rgba(255,184,48,0.12)", border: "1px solid rgba(255,184,48,0.3)", borderRadius: 12, padding: "2px 10px", fontSize: 10, color: "#ffb830" }}>Занят</div>
+                </div>
+                {theirOrders.map(o => (
+                  <div key={o.id} className="flex items-center gap-2 ml-12 py-1" style={{ borderTop: "1px solid rgba(0,80,200,0.1)" }}>
+                    <span style={{ fontSize: 10, color: "#60aaff" }}>{o.id}</span>
+                    <span style={{ fontSize: 10, color: "rgba(160,200,255,0.7)", flex: 1 }}>{o.device}</span>
+                    <span className={`status-badge ${STATUS_CLASS[o.status]}`} style={{ fontSize: 10 }}>{STATUS_LABELS[o.status]}</span>
+                  </div>
+                ))}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Таблица активных заказов */}
+      <div className="card-dark rounded-lg overflow-hidden">
+        <div style={{ padding: "10px 14px", borderBottom: "1px solid rgba(0,100,255,0.15)" }}>
+          <span style={{ fontFamily: "'Times New Roman', serif", fontSize: 13, color: "var(--neon-cyan)" }}>Активные заказы</span>
+        </div>
+        <table className="table-neon w-full">
+          <thead><tr><th>Номер</th><th>Клиент</th><th>Устройство</th><th>Мастер</th><th>Срок</th><th>Статус</th></tr></thead>
+          <tbody>
+            {activeOrders.map(o => (
+              <tr key={o.id}>
+                <td style={{ color: "#60aaff", fontWeight: 600 }}>{o.id}</td>
+                <td>{o.client}</td>
+                <td>{o.device}</td>
+                <td>{o.master}</td>
+                <td>{o.deadline}</td>
+                <td><span className={`status-badge ${STATUS_CLASS[o.status]}`}>{STATUS_LABELS[o.status]}</span></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+function DashReady({ orders, onBack }: { orders: Order[]; onBack: () => void }) {
+  const readyOrders = orders.filter(o => o.status === "ready");
+  return (
+    <div className="animate-fade-in">
+      <div className="flex items-center gap-3 mb-4">
+        <button onClick={onBack} className="neon-btn px-3 py-1.5 rounded flex items-center gap-2" style={{ fontSize: 12 }}>
+          <Icon name="ArrowLeft" size={14} style={{ color: "var(--neon-cyan)" }} />
+          Назад
+        </button>
+        <h2 style={{ fontFamily: "'Times New Roman', serif", fontSize: 18, color: "#3ddc84", textShadow: "0 0 12px rgba(61,220,132,0.5)" }}>
+          Готовы к выдаче <span style={{ fontSize: 13, color: "rgba(61,220,132,0.5)" }}>— {readyOrders.length} шт.</span>
+        </h2>
+      </div>
+      <div className="grid gap-3 mb-4" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))" }}>
+        {readyOrders.map(o => (
+          <div key={o.id} className="card-dark rounded-lg p-4" style={{ borderColor: "rgba(61,220,132,0.4)", boxShadow: "0 0 14px rgba(61,220,132,0.12)" }}>
+            <div className="flex items-start justify-between mb-3">
+              <span style={{ fontSize: 14, color: "#3ddc84", fontWeight: 700, textShadow: "0 0 8px rgba(61,220,132,0.5)" }}>{o.id}</span>
+              <span className="status-badge status-ready">Готов</span>
+            </div>
+            <div style={{ fontSize: 13, color: "rgba(200,230,255,0.95)", fontFamily: "'Times New Roman', serif", marginBottom: 4 }}>{o.client}</div>
+            <div style={{ fontSize: 11, color: "rgba(130,170,230,0.8)", marginBottom: 8 }}>{o.device}</div>
+            <div style={{ height: 1, background: "rgba(61,220,132,0.15)", marginBottom: 8 }} />
+            <div className="grid gap-1.5" style={{ gridTemplateColumns: "1fr 1fr" }}>
+              <div>
+                <div style={{ fontSize: 10, color: "rgba(100,140,200,0.6)" }}>Мастер</div>
+                <div style={{ fontSize: 11, color: "rgba(180,215,255,0.85)" }}>{o.master}</div>
+              </div>
+              <div>
+                <div style={{ fontSize: 10, color: "rgba(100,140,200,0.6)" }}>Телефон</div>
+                <div style={{ fontSize: 11, color: "rgba(180,215,255,0.85)" }}>{o.phone}</div>
+              </div>
+              <div>
+                <div style={{ fontSize: 10, color: "rgba(100,140,200,0.6)" }}>Стоимость</div>
+                <div style={{ fontSize: 12, color: "#3ddc84", fontWeight: 600 }}>{o.cost.toLocaleString("ru-RU")} ₽</div>
+              </div>
+              <div>
+                <div style={{ fontSize: 10, color: "rgba(100,140,200,0.6)" }}>Оплачено</div>
+                <div style={{ fontSize: 11, color: o.prepaid >= o.cost ? "#3ddc84" : "#ffb830" }}>{o.prepaid.toLocaleString("ru-RU")} ₽</div>
+              </div>
+            </div>
+            {o.prepaid < o.cost && (
+              <div style={{ marginTop: 10, padding: "6px 10px", background: "rgba(255,184,48,0.1)", border: "1px solid rgba(255,184,48,0.3)", borderRadius: 5, fontSize: 11, color: "#ffb830" }}>
+                ⚠ Доплата: {(o.cost - o.prepaid).toLocaleString("ru-RU")} ₽
+              </div>
+            )}
+          </div>
+        ))}
+        {readyOrders.length === 0 && (
+          <div style={{ fontSize: 13, color: "rgba(100,140,200,0.5)", textAlign: "center", padding: "40px 0", gridColumn: "1 / -1" }}>Готовых к выдаче заказов нет</div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function DashUrgent({ orders, onBack }: { orders: Order[]; onBack: () => void }) {
+  const urgentOrders = orders.filter(o => o.status === "urgent");
+  return (
+    <div className="animate-fade-in">
+      <div className="flex items-center gap-3 mb-4">
+        <button onClick={onBack} className="neon-btn px-3 py-1.5 rounded flex items-center gap-2" style={{ fontSize: 12 }}>
+          <Icon name="ArrowLeft" size={14} style={{ color: "var(--neon-cyan)" }} />
+          Назад
+        </button>
+        <h2 style={{ fontFamily: "'Times New Roman', serif", fontSize: 18, color: "#ff6060", textShadow: "0 0 15px rgba(255,96,96,0.6)" }}>
+          Срочные заказы <span style={{ fontSize: 13, color: "rgba(255,96,96,0.5)" }}>— {urgentOrders.length} шт.</span>
+        </h2>
+      </div>
+      {urgentOrders.length === 0 ? (
+        <div style={{ fontSize: 13, color: "rgba(100,140,200,0.5)", textAlign: "center", padding: "60px 0" }}>Срочных заказов нет</div>
+      ) : (
+        <div className="flex flex-col gap-3">
+          {urgentOrders.map((o, idx) => (
+            <div key={o.id} className="card-dark rounded-lg p-5" style={{ borderColor: "rgba(255,96,96,0.5)", boxShadow: "0 0 18px rgba(255,50,50,0.15)" }}>
+              <div className="flex items-center gap-4">
+                <div style={{ fontSize: 28, fontWeight: 900, color: "rgba(255,96,96,0.3)", fontFamily: "'Times New Roman', serif", minWidth: 32 }}>#{idx + 1}</div>
+                <div style={{ flex: 1 }}>
+                  <div className="flex items-center gap-3 mb-2">
+                    <span style={{ fontSize: 15, color: "#ff6060", fontWeight: 700, textShadow: "0 0 10px rgba(255,96,96,0.6)" }}>{o.id}</span>
+                    <span className="status-badge status-urgent">Срочный</span>
+                    <span style={{ fontSize: 10, color: "rgba(255,96,96,0.7)", marginLeft: "auto" }}>Срок: <strong style={{ color: "#ff6060" }}>{o.deadline}</strong></span>
+                  </div>
+                  <div className="grid gap-2" style={{ gridTemplateColumns: "repeat(4, 1fr)" }}>
+                    {[["Клиент", o.client], ["Устройство", o.device], ["Мастер", o.master], ["Стоимость", `${o.cost.toLocaleString("ru-RU")} ₽`]].map(([k, v]) => (
+                      <div key={k}>
+                        <div style={{ fontSize: 10, color: "rgba(100,140,200,0.6)" }}>{k}</div>
+                        <div style={{ fontSize: 11, color: "rgba(200,225,255,0.9)" }}>{v}</div>
+                      </div>
+                    ))}
+                  </div>
+                  <div style={{ marginTop: 10, padding: "6px 12px", background: "rgba(255,50,50,0.08)", border: "1px solid rgba(255,50,50,0.2)", borderRadius: 5 }}>
+                    <span style={{ fontSize: 10, color: "rgba(255,100,100,0.7)" }}>Проблема: </span>
+                    <span style={{ fontSize: 11, color: "rgba(200,225,255,0.85)" }}>{o.problem}</span>
+                  </div>
+                  {o.history.length > 0 && (
+                    <div style={{ marginTop: 8, fontSize: 10, color: "rgba(100,140,200,0.6)" }}>
+                      Последнее: <span style={{ color: "rgba(160,200,255,0.7)" }}>{o.history[o.history.length - 1].action}</span>
+                      <span style={{ marginLeft: 6, color: "rgba(100,140,200,0.5)" }}>— {o.history[o.history.length - 1].date}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ============ DASHBOARD ============
 function Dashboard({ orders }: { orders: Order[] }) {
+  const [view, setView] = useState<DashView>("main");
+
   const stats = {
     total: orders.length,
     active: orders.filter(o => o.status === "progress" || o.status === "new").length,
@@ -175,6 +428,11 @@ function Dashboard({ orders }: { orders: Order[] }) {
   ];
   const maxCount = Math.max(...monthData.map(d => d.count));
 
+  if (view === "all_orders") return <DashAllOrders orders={orders} onBack={() => setView("main")} />;
+  if (view === "in_work") return <DashInWork orders={orders} onBack={() => setView("main")} />;
+  if (view === "ready") return <DashReady orders={orders} onBack={() => setView("main")} />;
+  if (view === "urgent") return <DashUrgent orders={orders} onBack={() => setView("main")} />;
+
   return (
     <div className="animate-fade-in">
       <h2 className="mb-4" style={{ fontFamily: "'Times New Roman', serif", fontSize: 18, color: "var(--neon-cyan)", textShadow: "var(--neon-glow)" }}>
@@ -182,18 +440,28 @@ function Dashboard({ orders }: { orders: Order[] }) {
       </h2>
       <div className="grid grid-cols-4 gap-3 mb-6">
         {[
-          { label: "Всего заказов", value: stats.total, icon: "ClipboardList", color: "#60aaff" },
-          { label: "В работе", value: stats.active, icon: "Wrench", color: "#ffb830" },
-          { label: "Готовы к выдаче", value: stats.ready, icon: "CheckCircle", color: "#3ddc84" },
-          { label: "Срочные", value: stats.urgent, icon: "Zap", color: "#ff6060" },
+          { label: "Всего заказов", value: stats.total, icon: "ClipboardList", color: "#60aaff", view: "all_orders" as DashView },
+          { label: "В работе", value: stats.active, icon: "Wrench", color: "#ffb830", view: "in_work" as DashView },
+          { label: "Готовы к выдаче", value: stats.ready, icon: "CheckCircle", color: "#3ddc84", view: "ready" as DashView },
+          { label: "Срочные", value: stats.urgent, icon: "Zap", color: "#ff6060", view: "urgent" as DashView },
         ].map((s) => (
-          <div key={s.label} className="card-dark rounded-lg p-4">
+          <button
+            key={s.label}
+            onClick={() => setView(s.view)}
+            className="card-dark rounded-lg p-4 text-left"
+            style={{ cursor: "pointer", transition: "all 0.2s", display: "block", width: "100%", background: undefined }}
+            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = s.color + "88"; (e.currentTarget as HTMLElement).style.boxShadow = `0 0 20px ${s.color}22`; }}
+            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = ""; (e.currentTarget as HTMLElement).style.boxShadow = ""; }}
+          >
             <div className="flex items-center justify-between mb-2">
               <span style={{ fontSize: 11, color: "rgba(130,170,230,0.7)", fontFamily: "'Times New Roman', serif", letterSpacing: "0.06em" }}>{s.label}</span>
-              <Icon name={s.icon as string} size={16} style={{ color: s.color }} />
+              <div className="flex items-center gap-1.5">
+                <Icon name={s.icon as string} size={16} style={{ color: s.color }} />
+                <Icon name="ChevronRight" size={12} style={{ color: s.color + "88" }} />
+              </div>
             </div>
             <div style={{ fontSize: 28, fontWeight: 700, color: s.color, textShadow: `0 0 15px ${s.color}66`, fontFamily: "'Times New Roman', serif" }}>{s.value}</div>
-          </div>
+          </button>
         ))}
       </div>
 
