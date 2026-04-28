@@ -197,10 +197,14 @@ function DashAllOrders({ orders, onBack }: { orders: Order[]; onBack: () => void
   );
 }
 
-function DashInWork({ orders, onBack }: { orders: Order[]; onBack: () => void }) {
-  const busyMasters = DEMO_STAFF.filter(s => s.ordersActive > 0);
-  const freeMasters = DEMO_STAFF.filter(s => s.ordersActive === 0);
+function DashInWork({ orders, onBack, staff, setStaff }: { orders: Order[]; onBack: () => void; staff: Staff[]; setStaff: (s: Staff[]) => void }) {
+  const busyMasters = staff.filter(s => s.ordersActive > 0);
+  const freeMasters = staff.filter(s => s.ordersActive === 0);
   const activeOrders = orders.filter(o => o.status === "progress" || o.status === "new");
+
+  const toggleActivity = (id: string) => {
+    setStaff(staff.map(s => s.id === id ? { ...s, ordersActive: s.ordersActive > 0 ? 0 : 1 } : s));
+  };
 
   return (
     <div className="animate-fade-in">
@@ -229,11 +233,19 @@ function DashInWork({ orders, onBack }: { orders: Order[]; onBack: () => void })
               <div style={{ width: 38, height: 38, borderRadius: "50%", background: "rgba(61,220,132,0.12)", border: "1px solid rgba(61,220,132,0.3)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
                 <Icon name="User" size={16} style={{ color: "#3ddc84" }} />
               </div>
-              <div>
+              <div style={{ flex: 1 }}>
                 <div style={{ fontSize: 12, color: "rgba(200,230,255,0.9)", fontFamily: "'Times New Roman', serif" }}>{s.name}</div>
                 <div style={{ fontSize: 10, color: "rgba(61,220,132,0.7)", marginTop: 1 }}>{s.role} · ★ {s.rating}</div>
               </div>
-              <div style={{ marginLeft: "auto", background: "rgba(61,220,132,0.12)", border: "1px solid rgba(61,220,132,0.3)", borderRadius: 12, padding: "2px 10px", fontSize: 10, color: "#3ddc84" }}>Свободен</div>
+              <button
+                onClick={() => toggleActivity(s.id)}
+                style={{ background: "rgba(255,184,48,0.1)", border: "1px solid rgba(255,184,48,0.3)", borderRadius: 8, padding: "4px 10px", fontSize: 10, color: "#ffb830", cursor: "pointer", display: "flex", alignItems: "center", gap: 4, transition: "all 0.2s" }}
+                onMouseEnter={e => (e.currentTarget.style.background = "rgba(255,184,48,0.2)")}
+                onMouseLeave={e => (e.currentTarget.style.background = "rgba(255,184,48,0.1)")}
+              >
+                <Icon name="PlayCircle" size={11} style={{ color: "#ffb830" }} />
+                В работу
+              </button>
             </div>
           ))}
         </div>
@@ -254,11 +266,19 @@ function DashInWork({ orders, onBack }: { orders: Order[]; onBack: () => void })
                   <div style={{ width: 38, height: 38, borderRadius: "50%", background: "rgba(255,184,48,0.12)", border: "1px solid rgba(255,184,48,0.3)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
                     <Icon name="User" size={16} style={{ color: "#ffb830" }} />
                   </div>
-                  <div>
+                  <div style={{ flex: 1 }}>
                     <div style={{ fontSize: 12, color: "rgba(200,230,255,0.9)", fontFamily: "'Times New Roman', serif" }}>{s.name}</div>
                     <div style={{ fontSize: 10, color: "rgba(255,184,48,0.7)", marginTop: 1 }}>{s.role} · {s.ordersActive} активных</div>
                   </div>
-                  <div style={{ marginLeft: "auto", background: "rgba(255,184,48,0.12)", border: "1px solid rgba(255,184,48,0.3)", borderRadius: 12, padding: "2px 10px", fontSize: 10, color: "#ffb830" }}>Занят</div>
+                  <button
+                    onClick={() => toggleActivity(s.id)}
+                    style={{ background: "rgba(61,220,132,0.1)", border: "1px solid rgba(61,220,132,0.3)", borderRadius: 8, padding: "4px 10px", fontSize: 10, color: "#3ddc84", cursor: "pointer", display: "flex", alignItems: "center", gap: 4, transition: "all 0.2s" }}
+                    onMouseEnter={e => (e.currentTarget.style.background = "rgba(61,220,132,0.2)")}
+                    onMouseLeave={e => (e.currentTarget.style.background = "rgba(61,220,132,0.1)")}
+                  >
+                    <Icon name="PauseCircle" size={11} style={{ color: "#3ddc84" }} />
+                    Освободить
+                  </button>
                 </div>
                 {theirOrders.map(o => (
                   <div key={o.id} className="flex items-center gap-2 ml-12 py-1" style={{ borderTop: "1px solid rgba(0,80,200,0.1)" }}>
@@ -410,7 +430,7 @@ function DashUrgent({ orders, onBack }: { orders: Order[]; onBack: () => void })
 }
 
 // ============ DASHBOARD ============
-function Dashboard({ orders }: { orders: Order[] }) {
+function Dashboard({ orders, staff, setStaff }: { orders: Order[]; staff: Staff[]; setStaff: (s: Staff[]) => void }) {
   const [view, setView] = useState<DashView>("main");
 
   const stats = {
@@ -429,7 +449,7 @@ function Dashboard({ orders }: { orders: Order[] }) {
   const maxCount = Math.max(...monthData.map(d => d.count));
 
   if (view === "all_orders") return <DashAllOrders orders={orders} onBack={() => setView("main")} />;
-  if (view === "in_work") return <DashInWork orders={orders} onBack={() => setView("main")} />;
+  if (view === "in_work") return <DashInWork orders={orders} onBack={() => setView("main")} staff={staff} setStaff={setStaff} />;
   if (view === "ready") return <DashReady orders={orders} onBack={() => setView("main")} />;
   if (view === "urgent") return <DashUrgent orders={orders} onBack={() => setView("main")} />;
 
@@ -974,7 +994,10 @@ const NAV: { key: Section; label: string; icon: string; hotkey: string }[] = [
 export default function App() {
   const [section, setSection] = useState<Section>("dashboard");
   const [orders, setOrders] = useState<Order[]>(DEMO_ORDERS);
+  const [staff, setStaff] = useState<Staff[]>(DEMO_STAFF);
   const [error, setError] = useState<ErrorNotification | null>(null);
+  const [currentUser, setCurrentUser] = useState<Staff>(DEMO_STAFF[3]);
+  const [userMenuOpen, setUserMenuOpen] = useState(false);
 
   const showError = useCallback((key: string) => {
     setError(ERROR_MESSAGES[key] || ERROR_MESSAGES.SAVE_ERROR);
@@ -1006,15 +1029,56 @@ export default function App() {
               <div style={{ fontSize: 9, color: "rgba(80,120,180,0.7)", letterSpacing: "0.1em" }}>СИСТЕМА УПРАВЛЕНИЯ МАСТЕРСКОЙ</div>
             </div>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3" style={{ position: "relative" }}>
             <span style={{ fontSize: 10, color: "rgba(80,120,180,0.6)" }}>28 апр. 2026</span>
             <div style={{ width: 1, height: 20, background: "rgba(0,100,255,0.2)" }} />
-            <div className="flex items-center gap-2" style={{ cursor: "pointer" }}>
-              <div style={{ width: 28, height: 28, borderRadius: "50%", background: "rgba(0,100,255,0.2)", border: "1px solid rgba(0,150,255,0.3)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                <Icon name="User" size={14} style={{ color: "#60aaff" }} />
+            <button
+              onClick={() => setUserMenuOpen(v => !v)}
+              className="flex items-center gap-2"
+              style={{ cursor: "pointer", background: "none", border: "none", padding: "4px 8px", borderRadius: 6, transition: "background 0.2s" }}
+              onMouseEnter={e => (e.currentTarget.style.background = "rgba(0,100,255,0.12)")}
+              onMouseLeave={e => (e.currentTarget.style.background = "none")}
+            >
+              <div style={{ width: 28, height: 28, borderRadius: "50%", background: currentUser.ordersActive > 0 ? "rgba(255,184,48,0.2)" : "rgba(0,100,255,0.2)", border: `1px solid ${currentUser.ordersActive > 0 ? "rgba(255,184,48,0.4)" : "rgba(0,150,255,0.3)"}`, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <Icon name="User" size={14} style={{ color: currentUser.ordersActive > 0 ? "#ffb830" : "#60aaff" }} />
               </div>
-              <span style={{ fontSize: 11, color: "rgba(130,170,220,0.8)" }}>Администратор</span>
-            </div>
+              <div style={{ textAlign: "left" }}>
+                <div style={{ fontSize: 11, color: "rgba(180,210,255,0.9)", lineHeight: 1.2 }}>{currentUser.name.split(" ")[0]} {currentUser.name.split(" ")[1]?.[0]}.</div>
+                <div style={{ fontSize: 9, color: "rgba(100,140,200,0.6)" }}>{currentUser.role}</div>
+              </div>
+              <Icon name="ChevronDown" size={12} style={{ color: "rgba(80,120,180,0.5)", transform: userMenuOpen ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.2s" }} />
+            </button>
+
+            {userMenuOpen && (
+              <div
+                style={{ position: "absolute", top: "calc(100% + 8px)", right: 0, minWidth: 240, background: "rgba(4,12,30,0.98)", border: "1px solid rgba(0,100,255,0.25)", borderRadius: 10, boxShadow: "0 8px 32px rgba(0,0,0,0.6), 0 0 20px rgba(0,80,200,0.15)", overflow: "hidden", zIndex: 100 }}
+                onMouseLeave={() => setUserMenuOpen(false)}
+              >
+                <div style={{ padding: "8px 12px 6px", borderBottom: "1px solid rgba(0,80,200,0.15)" }}>
+                  <div style={{ fontSize: 9, color: "rgba(80,120,180,0.6)", letterSpacing: "0.08em", marginBottom: 4 }}>СМЕНИТЬ ПОЛЬЗОВАТЕЛЯ</div>
+                </div>
+                {staff.map(s => (
+                  <button
+                    key={s.id}
+                    onClick={() => { setCurrentUser(s); setUserMenuOpen(false); }}
+                    style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", padding: "9px 12px", background: currentUser.id === s.id ? "rgba(0,100,255,0.12)" : "transparent", border: "none", cursor: "pointer", transition: "background 0.15s", borderLeft: currentUser.id === s.id ? "2px solid var(--neon-cyan)" : "2px solid transparent" }}
+                    onMouseEnter={e => { if (currentUser.id !== s.id) (e.currentTarget as HTMLElement).style.background = "rgba(0,80,200,0.1)"; }}
+                    onMouseLeave={e => { if (currentUser.id !== s.id) (e.currentTarget as HTMLElement).style.background = "transparent"; }}
+                  >
+                    <div style={{ width: 32, height: 32, borderRadius: "50%", background: s.ordersActive > 0 ? "rgba(255,184,48,0.15)" : "rgba(61,220,132,0.12)", border: `1px solid ${s.ordersActive > 0 ? "rgba(255,184,48,0.35)" : "rgba(61,220,132,0.3)"}`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                      <Icon name="User" size={14} style={{ color: s.ordersActive > 0 ? "#ffb830" : "#3ddc84" }} />
+                    </div>
+                    <div style={{ flex: 1, textAlign: "left" }}>
+                      <div style={{ fontSize: 12, color: currentUser.id === s.id ? "rgba(200,230,255,0.95)" : "rgba(150,190,240,0.85)", fontFamily: "'Times New Roman', serif" }}>{s.name}</div>
+                      <div style={{ fontSize: 10, color: "rgba(90,130,190,0.6)", marginTop: 1 }}>{s.role}</div>
+                    </div>
+                    <div style={{ fontSize: 10, color: s.ordersActive > 0 ? "#ffb830" : "#3ddc84", background: s.ordersActive > 0 ? "rgba(255,184,48,0.1)" : "rgba(61,220,132,0.1)", border: `1px solid ${s.ordersActive > 0 ? "rgba(255,184,48,0.25)" : "rgba(61,220,132,0.25)"}`, borderRadius: 10, padding: "1px 8px" }}>
+                      {s.ordersActive > 0 ? `${s.ordersActive} зак.` : "Свободен"}
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       </header>
@@ -1055,7 +1119,7 @@ export default function App() {
         </aside>
 
         <main style={{ flex: 1, padding: "24px 28px", overflowX: "hidden" }}>
-          {section === "dashboard" && <Dashboard orders={orders} />}
+          {section === "dashboard" && <Dashboard orders={orders} staff={staff} setStaff={setStaff} />}
           {section === "orders" && <Orders orders={orders} setOrders={setOrders} showError={showError} />}
           {section === "staff" && <StaffSection />}
           {section === "parts" && <PartsSection showError={showError} />}
