@@ -197,7 +197,49 @@ function DashAllOrders({ orders, onBack }: { orders: Order[]; onBack: () => void
   );
 }
 
-function DashInWork({ orders, onBack, staff, setStaff }: { orders: Order[]; onBack: () => void; staff: Staff[]; setStaff: (s: Staff[]) => void }) {
+function OrderStatusDropdown({ order, setOrders }: { order: Order; setOrders: (fn: (prev: Order[]) => Order[]) => void }) {
+  const [open, setOpen] = useState(false);
+  const opts: { status: OrderStatus; label: string; color: string }[] = [
+    { status: "new", label: "Начать ремонт", color: "#60aaff" },
+    { status: "progress", label: "В работе", color: "#ffb830" },
+    { status: "ready", label: "Готов к выдаче", color: "#3ddc84" },
+  ];
+  return (
+    <div style={{ position: "relative" }}>
+      <button
+        onClick={() => setOpen(v => !v)}
+        style={{ background: "rgba(0,100,255,0.1)", border: "1px solid rgba(0,130,255,0.25)", borderRadius: 7, padding: "4px 9px", fontSize: 10, color: "var(--neon-cyan)", cursor: "pointer", display: "flex", alignItems: "center", gap: 4, transition: "all 0.15s" }}
+        onMouseEnter={e => (e.currentTarget.style.background = "rgba(0,100,255,0.2)")}
+        onMouseLeave={e => (e.currentTarget.style.background = "rgba(0,100,255,0.1)")}
+      >
+        <Icon name="RefreshCw" size={11} style={{ color: "var(--neon-cyan)" }} />
+        Статус
+        <Icon name="ChevronDown" size={10} style={{ color: "var(--neon-cyan)", transform: open ? "rotate(180deg)" : "none", transition: "transform 0.15s" }} />
+      </button>
+      {open && (
+        <div
+          style={{ position: "absolute", top: "calc(100% + 4px)", right: 0, background: "rgba(4,12,30,0.98)", border: "1px solid rgba(0,100,255,0.25)", borderRadius: 8, boxShadow: "0 8px 24px rgba(0,0,0,0.6)", zIndex: 50, minWidth: 160, overflow: "hidden" }}
+          onMouseLeave={() => setOpen(false)}
+        >
+          {opts.map(o => (
+            <button
+              key={o.status}
+              onClick={() => { setOrders(prev => prev.map(x => x.id === order.id ? { ...x, status: o.status } : x)); setOpen(false); }}
+              style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", padding: "8px 12px", background: order.status === o.status ? "rgba(0,100,255,0.12)" : "transparent", border: "none", cursor: "pointer", transition: "background 0.12s", borderLeft: order.status === o.status ? `2px solid ${o.color}` : "2px solid transparent" }}
+              onMouseEnter={e => { if (order.status !== o.status) (e.currentTarget as HTMLElement).style.background = "rgba(0,80,200,0.1)"; }}
+              onMouseLeave={e => { if (order.status !== o.status) (e.currentTarget as HTMLElement).style.background = "transparent"; }}
+            >
+              <div style={{ width: 7, height: 7, borderRadius: "50%", background: o.color, boxShadow: `0 0 5px ${o.color}88` }} />
+              <span style={{ fontSize: 12, color: order.status === o.status ? "rgba(200,230,255,0.95)" : "rgba(150,190,240,0.8)", fontFamily: "'Times New Roman', serif" }}>{o.label}</span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function DashInWork({ orders, onBack, staff, setStaff, setOrders }: { orders: Order[]; onBack: () => void; staff: Staff[]; setStaff: (s: Staff[]) => void; setOrders: (fn: (prev: Order[]) => Order[]) => void }) {
   const busyMasters = staff.filter(s => s.ordersActive > 0);
   const freeMasters = staff.filter(s => s.ordersActive === 0);
   const activeOrders = orders.filter(o => o.status === "progress" || o.status === "new");
@@ -285,6 +327,7 @@ function DashInWork({ orders, onBack, staff, setStaff }: { orders: Order[]; onBa
                     <span style={{ fontSize: 10, color: "#60aaff" }}>{o.id}</span>
                     <span style={{ fontSize: 10, color: "rgba(160,200,255,0.7)", flex: 1 }}>{o.device}</span>
                     <span className={`status-badge ${STATUS_CLASS[o.status]}`} style={{ fontSize: 10 }}>{STATUS_LABELS[o.status]}</span>
+                    <OrderStatusDropdown order={o} setOrders={setOrders} />
                   </div>
                 ))}
               </div>
@@ -299,7 +342,7 @@ function DashInWork({ orders, onBack, staff, setStaff }: { orders: Order[]; onBa
           <span style={{ fontFamily: "'Times New Roman', serif", fontSize: 13, color: "var(--neon-cyan)" }}>Активные заказы</span>
         </div>
         <table className="table-neon w-full">
-          <thead><tr><th>Номер</th><th>Клиент</th><th>Устройство</th><th>Мастер</th><th>Срок</th><th>Статус</th></tr></thead>
+          <thead><tr><th>Номер</th><th>Клиент</th><th>Устройство</th><th>Мастер</th><th>Срок</th><th>Статус</th><th></th></tr></thead>
           <tbody>
             {activeOrders.map(o => (
               <tr key={o.id}>
@@ -309,6 +352,7 @@ function DashInWork({ orders, onBack, staff, setStaff }: { orders: Order[]; onBa
                 <td>{o.master}</td>
                 <td>{o.deadline}</td>
                 <td><span className={`status-badge ${STATUS_CLASS[o.status]}`}>{STATUS_LABELS[o.status]}</span></td>
+                <td><OrderStatusDropdown order={o} setOrders={setOrders} /></td>
               </tr>
             ))}
           </tbody>
@@ -318,7 +362,7 @@ function DashInWork({ orders, onBack, staff, setStaff }: { orders: Order[]; onBa
   );
 }
 
-function DashReady({ orders, onBack }: { orders: Order[]; onBack: () => void }) {
+function DashReady({ orders, onBack, setOrders }: { orders: Order[]; onBack: () => void; setOrders: (fn: (prev: Order[]) => Order[]) => void }) {
   const readyOrders = orders.filter(o => o.status === "ready");
   return (
     <div className="animate-fade-in">
@@ -364,6 +408,9 @@ function DashReady({ orders, onBack }: { orders: Order[]; onBack: () => void }) 
                 ⚠ Доплата: {(o.cost - o.prepaid).toLocaleString("ru-RU")} ₽
               </div>
             )}
+            <div style={{ marginTop: 10 }}>
+              <OrderStatusDropdown order={o} setOrders={setOrders} />
+            </div>
           </div>
         ))}
         {readyOrders.length === 0 && (
@@ -374,7 +421,7 @@ function DashReady({ orders, onBack }: { orders: Order[]; onBack: () => void }) 
   );
 }
 
-function DashUrgent({ orders, onBack }: { orders: Order[]; onBack: () => void }) {
+function DashUrgent({ orders, onBack, setOrders }: { orders: Order[]; onBack: () => void; setOrders: (fn: (prev: Order[]) => Order[]) => void }) {
   const urgentOrders = orders.filter(o => o.status === "urgent");
   return (
     <div className="animate-fade-in">
@@ -419,6 +466,9 @@ function DashUrgent({ orders, onBack }: { orders: Order[]; onBack: () => void })
                       <span style={{ marginLeft: 6, color: "rgba(100,140,200,0.5)" }}>— {o.history[o.history.length - 1].date}</span>
                     </div>
                   )}
+                  <div style={{ marginTop: 10 }}>
+                    <OrderStatusDropdown order={o} setOrders={setOrders} />
+                  </div>
                 </div>
               </div>
             </div>
@@ -430,7 +480,7 @@ function DashUrgent({ orders, onBack }: { orders: Order[]; onBack: () => void })
 }
 
 // ============ DASHBOARD ============
-function Dashboard({ orders, staff, setStaff }: { orders: Order[]; staff: Staff[]; setStaff: (s: Staff[]) => void }) {
+function Dashboard({ orders, setOrders, staff, setStaff }: { orders: Order[]; setOrders: (fn: (prev: Order[]) => Order[]) => void; staff: Staff[]; setStaff: (s: Staff[]) => void }) {
   const [view, setView] = useState<DashView>("main");
 
   const stats = {
@@ -449,9 +499,9 @@ function Dashboard({ orders, staff, setStaff }: { orders: Order[]; staff: Staff[
   const maxCount = Math.max(...monthData.map(d => d.count));
 
   if (view === "all_orders") return <DashAllOrders orders={orders} onBack={() => setView("main")} />;
-  if (view === "in_work") return <DashInWork orders={orders} onBack={() => setView("main")} staff={staff} setStaff={setStaff} />;
-  if (view === "ready") return <DashReady orders={orders} onBack={() => setView("main")} />;
-  if (view === "urgent") return <DashUrgent orders={orders} onBack={() => setView("main")} />;
+  if (view === "in_work") return <DashInWork orders={orders} onBack={() => setView("main")} staff={staff} setStaff={setStaff} setOrders={setOrders} />;
+  if (view === "ready") return <DashReady orders={orders} onBack={() => setView("main")} setOrders={setOrders} />;
+  if (view === "urgent") return <DashUrgent orders={orders} onBack={() => setView("main")} setOrders={setOrders} />;
 
   return (
     <div className="animate-fade-in">
@@ -718,10 +768,62 @@ function StaffSection() {
   );
 }
 
+const SHOPS = [
+  { name: "ТехноПоставка", url: "#", cat: "Дисплеи, камеры", rating: 4.8, icon: "Monitor" },
+  { name: "МобилЗапчасть", url: "#", cat: "Аккумуляторы, разъёмы", rating: 4.6, icon: "Battery" },
+  { name: "АппАкс", url: "#", cat: "Apple запчасти, клавиатуры", rating: 4.9, icon: "Apple" },
+  { name: "КомпМастер", url: "#", cat: "Расходники, инструменты", rating: 4.5, icon: "Wrench" },
+  { name: "GSM-Запчасти", url: "#", cat: "Смартфоны, планшеты", rating: 4.7, icon: "Smartphone" },
+  { name: "PartHub", url: "#", cat: "Ноутбуки, оргтехника", rating: 4.6, icon: "Laptop" },
+];
+
 // ============ ЗАПЧАСТИ ============
 function PartsSection({ showError }: { showError: (k: string) => void }) {
   const [search, setSearch] = useState("");
+  const [showShops, setShowShops] = useState(false);
   const filtered = DEMO_PARTS.filter(p => p.name.toLowerCase().includes(search.toLowerCase()) || p.sku.toLowerCase().includes(search.toLowerCase()));
+
+  if (showShops) return (
+    <div className="animate-fade-in">
+      <div className="flex items-center gap-3 mb-5">
+        <button onClick={() => setShowShops(false)} className="neon-btn px-3 py-1.5 rounded flex items-center gap-2" style={{ fontSize: 12 }}>
+          <Icon name="ArrowLeft" size={14} style={{ color: "var(--neon-cyan)" }} />
+          Назад
+        </button>
+        <h2 style={{ fontFamily: "'Times New Roman', serif", fontSize: 18, color: "var(--neon-cyan)", textShadow: "var(--neon-glow)" }}>
+          Интернет-магазины запчастей
+        </h2>
+      </div>
+      <div style={{ marginBottom: 20, padding: "12px 16px", background: "rgba(0,80,200,0.07)", border: "1px solid rgba(0,100,255,0.15)", borderRadius: 10 }}>
+        <div style={{ fontSize: 12, color: "rgba(130,170,230,0.7)" }}>
+          Здесь будут ссылки на проверенных поставщиков запчастей. Ссылки появятся после настройки.
+        </div>
+      </div>
+      <div className="grid gap-4" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))" }}>
+        {SHOPS.map(s => (
+          <div key={s.name} className="card-dark rounded-lg p-5" style={{ borderColor: "rgba(0,100,255,0.2)" }}>
+            <div className="flex items-start gap-4 mb-3">
+              <div style={{ width: 44, height: 44, borderRadius: 10, background: "rgba(0,100,255,0.12)", border: "1px solid rgba(0,150,255,0.2)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                <Icon name={s.icon as string} fallback="ShoppingBag" size={20} style={{ color: "var(--neon-cyan)" }} />
+              </div>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 14, color: "rgba(200,230,255,0.95)", fontFamily: "'Times New Roman', serif", marginBottom: 2 }}>{s.name}</div>
+                <div style={{ fontSize: 11, color: "rgba(100,140,200,0.7)" }}>{s.cat}</div>
+              </div>
+              <div style={{ fontSize: 11, color: "#ffb830" }}>★ {s.rating}</div>
+            </div>
+            <button
+              style={{ width: "100%", padding: "8px 0", background: "rgba(0,100,255,0.08)", border: "1px solid rgba(0,120,255,0.25)", borderRadius: 7, color: "rgba(100,150,220,0.6)", fontSize: 12, cursor: "not-allowed", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}
+              disabled
+            >
+              <Icon name="ExternalLink" size={13} style={{ color: "rgba(80,120,200,0.5)" }} />
+              Ссылка не настроена
+            </button>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
 
   return (
     <div className="animate-fade-in">
@@ -729,6 +831,10 @@ function PartsSection({ showError }: { showError: (k: string) => void }) {
         <h2 style={{ fontFamily: "'Times New Roman', serif", fontSize: 18, color: "var(--neon-cyan)", textShadow: "var(--neon-glow)" }}>Запчасти и склад</h2>
         <div className="flex items-center gap-3">
           <HotkeyHint keys="Alt+P" label="Поступление" />
+          <button className="neon-btn px-4 py-2 rounded flex items-center gap-2" onClick={() => setShowShops(true)}>
+            <Icon name="ShoppingCart" size={14} style={{ color: "var(--neon-cyan)" }} />
+            Заказать товары
+          </button>
           <button className="neon-btn px-4 py-2 rounded" onClick={() => showError("LOW_STOCK")}>+ Поступление</button>
         </div>
       </div>
@@ -998,6 +1104,8 @@ export default function App() {
   const [error, setError] = useState<ErrorNotification | null>(null);
   const [currentUser, setCurrentUser] = useState<Staff>(DEMO_STAFF[3]);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const [showNewUserForm, setShowNewUserForm] = useState(false);
+  const [newUserData, setNewUserData] = useState({ name: "", role: "Мастер", phone: "" });
 
   const showError = useCallback((key: string) => {
     setError(ERROR_MESSAGES[key] || ERROR_MESSAGES.SAVE_ERROR);
@@ -1077,6 +1185,17 @@ export default function App() {
                     </div>
                   </button>
                 ))}
+                <div style={{ borderTop: "1px solid rgba(0,80,200,0.15)", padding: "6px 12px 8px" }}>
+                  <button
+                    onClick={() => { setUserMenuOpen(false); setShowNewUserForm(true); }}
+                    style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", padding: "7px 10px", background: "rgba(0,100,255,0.08)", border: "1px dashed rgba(0,120,255,0.3)", borderRadius: 8, cursor: "pointer", transition: "all 0.2s" }}
+                    onMouseEnter={e => (e.currentTarget.style.background = "rgba(0,100,255,0.15)")}
+                    onMouseLeave={e => (e.currentTarget.style.background = "rgba(0,100,255,0.08)")}
+                  >
+                    <Icon name="UserPlus" size={14} style={{ color: "var(--neon-cyan)" }} />
+                    <span style={{ fontSize: 12, color: "var(--neon-cyan)", fontFamily: "'Times New Roman', serif" }}>Новый пользователь</span>
+                  </button>
+                </div>
               </div>
             )}
           </div>
@@ -1119,7 +1238,7 @@ export default function App() {
         </aside>
 
         <main style={{ flex: 1, padding: "24px 28px", overflowX: "hidden" }}>
-          {section === "dashboard" && <Dashboard orders={orders} staff={staff} setStaff={setStaff} />}
+          {section === "dashboard" && <Dashboard orders={orders} setOrders={setOrders} staff={staff} setStaff={setStaff} />}
           {section === "orders" && <Orders orders={orders} setOrders={setOrders} showError={showError} />}
           {section === "staff" && <StaffSection />}
           {section === "parts" && <PartsSection showError={showError} />}
@@ -1130,6 +1249,49 @@ export default function App() {
       </div>
 
       {error && <ErrorToast err={error} onClose={() => setError(null)} />}
+
+      {showNewUserForm && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.75)", zIndex: 200, display: "flex", alignItems: "center", justifyContent: "center" }} onClick={() => setShowNewUserForm(false)}>
+          <div style={{ background: "rgba(4,12,32,0.98)", border: "1px solid rgba(0,120,255,0.3)", borderRadius: 14, padding: 28, minWidth: 360, boxShadow: "0 16px 60px rgba(0,0,0,0.7), 0 0 30px rgba(0,80,200,0.15)" }} onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-5">
+              <h3 style={{ fontFamily: "'Times New Roman', serif", fontSize: 16, color: "var(--neon-cyan)", textShadow: "var(--neon-glow)" }}>Новый пользователь</h3>
+              <button onClick={() => setShowNewUserForm(false)} style={{ background: "none", border: "none", cursor: "pointer" }}>
+                <Icon name="X" size={16} style={{ color: "rgba(100,140,200,0.6)" }} />
+              </button>
+            </div>
+            <div className="flex flex-col gap-3">
+              <div>
+                <div style={{ fontSize: 11, color: "rgba(100,140,200,0.7)", marginBottom: 5 }}>ФИО</div>
+                <input className="input-neon w-full" placeholder="Фамилия Имя Отчество" value={newUserData.name} onChange={e => setNewUserData(d => ({ ...d, name: e.target.value }))} />
+              </div>
+              <div>
+                <div style={{ fontSize: 11, color: "rgba(100,140,200,0.7)", marginBottom: 5 }}>Должность</div>
+                <select className="input-neon w-full" value={newUserData.role} onChange={e => setNewUserData(d => ({ ...d, role: e.target.value }))}>
+                  {["Мастер", "Старший мастер", "Администратор", "Менеджер"].map(r => <option key={r} value={r}>{r}</option>)}
+                </select>
+              </div>
+              <div>
+                <div style={{ fontSize: 11, color: "rgba(100,140,200,0.7)", marginBottom: 5 }}>Телефон</div>
+                <input className="input-neon w-full" placeholder="+7 (___) ___-__-__" value={newUserData.phone} onChange={e => setNewUserData(d => ({ ...d, phone: e.target.value }))} />
+              </div>
+            </div>
+            <div className="flex gap-3 mt-5">
+              <button
+                className="neon-btn px-5 py-2 rounded flex-1"
+                onClick={() => {
+                  if (!newUserData.name.trim()) return;
+                  const newStaff: Staff = { id: `С-00${staff.length + 1}`, name: newUserData.name.trim(), role: newUserData.role, phone: newUserData.phone, ordersActive: 0, ordersTotal: 0, rating: 5.0 };
+                  setStaff([...staff, newStaff]);
+                  setCurrentUser(newStaff);
+                  setNewUserData({ name: "", role: "Мастер", phone: "" });
+                  setShowNewUserForm(false);
+                }}
+              >Добавить и войти</button>
+              <button onClick={() => setShowNewUserForm(false)} style={{ padding: "8px 16px", background: "transparent", border: "1px solid rgba(0,80,200,0.3)", borderRadius: 6, color: "rgba(100,140,200,0.7)", cursor: "pointer", fontSize: 13 }}>Отмена</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
