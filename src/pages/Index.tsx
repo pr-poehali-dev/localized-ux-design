@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback } from "react";
 import Icon from "@/components/ui/icon";
 
-// ============ ТИПЫ ============
+// типы для заказов и всего остального
+// TODO: потом вынести в отдельный файл types.ts
 type OrderStatus = "new" | "progress" | "ready" | "done" | "urgent";
 type Section = "dashboard" | "orders" | "staff" | "parts" | "schedule" | "reports" | "cabinet";
 
@@ -63,7 +64,8 @@ interface ErrorNotification {
   recommendation: string;
 }
 
-// ============ ДАННЫЕ ============
+// тестовые данные (потом заменить на запросы к серверу)
+// не трогать, работает
 const DEMO_ORDERS: Order[] = [
   { id: "ЗК-001", client: "Иванов А.П.", phone: "+7 (912) 345-67-89", device: "iPhone 13 Pro", problem: "Разбит экран, не работает тачскрин", master: "Сидоров В.И.", status: "progress", created: "22.04.2026", deadline: "25.04.2026", cost: 8500, prepaid: 2000, history: [{ date: "22.04 10:15", action: "Принят в работу", user: "Администратор" }, { date: "22.04 14:30", action: "Диагностика завершена", user: "Сидоров В.И." }, { date: "23.04 09:00", action: "Заказана запчасть: экран", user: "Сидоров В.И." }] },
   { id: "ЗК-002", client: "Петрова М.С.", phone: "+7 (916) 234-56-78", device: "Samsung Galaxy S22", problem: "Не заряжается, гнутый разъём", master: "Козлов А.Е.", status: "ready", created: "21.04.2026", deadline: "24.04.2026", cost: 3200, prepaid: 1000, history: [{ date: "21.04 11:00", action: "Принят в работу", user: "Администратор" }, { date: "22.04 16:45", action: "Разъём заменён, проверка завершена", user: "Козлов А.Е." }] },
@@ -99,7 +101,7 @@ const DEMO_SCHEDULE: ScheduleEntry[] = [
   { id: "РП-006", date: "30.04.2026", time: "09:30", client: "Смирнов Д.К.", device: "Ноутбук ASUS", master: "Сидоров В.И.", type: "Выдача" },
 ];
 
-// ============ УТИЛИТЫ ============
+// вспомогательные штуки для статусов
 const STATUS_LABELS: Record<OrderStatus, string> = {
   new: "Новый",
   progress: "В работе",
@@ -123,7 +125,8 @@ const ERROR_MESSAGES: Record<string, ErrorNotification> = {
   SAVE_ERROR: { code: "ERR-004", message: "Ошибка сохранения данных", recommendation: "Проверьте подключение к сети и повторите попытку. Если ошибка повторяется — обратитесь в поддержку." },
 };
 
-// ============ КОМПОНЕНТ ОШИБКИ ============
+// компонент для показа ошибок внизу экрана (типа toast уведомление)
+// скопировал идею со stackoverflow, немного переделал
 function ErrorToast({ err, onClose }: { err: ErrorNotification; onClose: () => void }) {
   useEffect(() => {
     const t = setTimeout(onClose, 6000);
@@ -148,7 +151,7 @@ function ErrorToast({ err, onClose }: { err: ErrorNotification; onClose: () => v
   );
 }
 
-// ============ ГОРЯЧИЕ КЛАВИШИ ============
+// маленький компонент для подсказок горячих клавиш
 function HotkeyHint({ keys, label }: { keys: string; label: string }) {
   return (
     <span className="flex items-center gap-1.5" style={{ fontSize: 11, color: "rgba(100,150,220,0.7)" }}>
@@ -158,11 +161,14 @@ function HotkeyHint({ keys, label }: { keys: string; label: string }) {
   );
 }
 
-// ============ DASHBOARD SUB-VIEWS ============
+// подтипы для главной страницы (dashboard)
+// это нужно чтобы переключаться между видами
 
 type DashView = "main" | "all_orders" | "in_work" | "ready" | "urgent";
 
+// показывает все заказы в таблице
 function DashAllOrders({ orders, onBack }: { orders: Order[]; onBack: () => void }) {
+  const totalOrdersCount = orders.length; // сколько всего заказов
   return (
     <div className="animate-fade-in">
       <div className="flex items-center gap-3 mb-4">
@@ -171,23 +177,23 @@ function DashAllOrders({ orders, onBack }: { orders: Order[]; onBack: () => void
           Назад
         </button>
         <h2 style={{ fontFamily: "'Times New Roman', serif", fontSize: 18, color: "var(--neon-cyan)", textShadow: "var(--neon-glow)" }}>
-          Все заказы <span style={{ fontSize: 13, color: "rgba(100,150,220,0.6)" }}>— {orders.length} шт.</span>
+          Все заказы <span style={{ fontSize: 13, color: "rgba(100,150,220,0.6)" }}>— {totalOrdersCount} шт.</span>
         </h2>
       </div>
       <div className="card-dark rounded-lg overflow-hidden">
         <table className="table-neon w-full">
           <thead><tr><th>Номер</th><th>Клиент</th><th>Устройство</th><th>Мастер</th><th>Создан</th><th>Срок</th><th>Стоимость</th><th>Статус</th></tr></thead>
           <tbody>
-            {orders.map(o => (
-              <tr key={o.id}>
-                <td style={{ color: "#60aaff", fontWeight: 600 }}>{o.id}</td>
-                <td>{o.client}</td>
-                <td>{o.device}</td>
-                <td>{o.master}</td>
-                <td>{o.created}</td>
-                <td>{o.deadline}</td>
-                <td style={{ color: "#3ddc84" }}>{o.cost.toLocaleString("ru-RU")} ₽</td>
-                <td><span className={`status-badge ${STATUS_CLASS[o.status]}`}>{STATUS_LABELS[o.status]}</span></td>
+            {orders.map(orderItem => (
+              <tr key={orderItem.id}>
+                <td style={{ color: "#60aaff", fontWeight: 600 }}>{orderItem.id}</td>
+                <td>{orderItem.client}</td>
+                <td>{orderItem.device}</td>
+                <td>{orderItem.master}</td>
+                <td>{orderItem.created}</td>
+                <td>{orderItem.deadline}</td>
+                <td style={{ color: "#3ddc84" }}>{orderItem.cost.toLocaleString("ru-RU")} ₽</td>
+                <td><span className={`status-badge ${STATUS_CLASS[orderItem.status]}`}>{STATUS_LABELS[orderItem.status]}</span></td>
               </tr>
             ))}
           </tbody>
@@ -197,14 +203,25 @@ function DashAllOrders({ orders, onBack }: { orders: Order[]; onBack: () => void
   );
 }
 
+// дропдаун для смены статуса заказа
+// я не знаю почему но это нужно делать через отдельный компонент
 function OrderStatusDropdown({ order, setOrders }: { order: Order; setOrders: (fn: (prev: Order[]) => Order[]) => void }) {
   const [open, setOpen] = useState(false);
-  const opts: { status: OrderStatus; label: string; color: string }[] = [
+
+  // все возможные статусы с цветами
+  const statusOptions: { status: OrderStatus; label: string; color: string }[] = [
     { status: "new", label: "Начать ремонт", color: "#60aaff" },
     { status: "progress", label: "В работе", color: "#ffb830" },
     { status: "ready", label: "Готов к выдаче", color: "#3ddc84" },
     { status: "done", label: "Готов", color: "#a78bfa" },
   ];
+
+  const handleStatusChange = (newStatus: OrderStatus) => {
+    console.log("меняю статус заказа на:", newStatus);
+    setOrders(prev => prev.map(x => x.id === order.id ? { ...x, status: newStatus } : x));
+    setOpen(false);
+  };
+
   return (
     <div style={{ position: "relative" }}>
       <button
@@ -222,31 +239,42 @@ function OrderStatusDropdown({ order, setOrders }: { order: Order; setOrders: (f
           style={{ position: "absolute", top: "calc(100% + 4px)", right: 0, background: "rgba(4,12,30,0.98)", border: "1px solid rgba(0,100,255,0.25)", borderRadius: 8, boxShadow: "0 8px 24px rgba(0,0,0,0.6)", zIndex: 50, minWidth: 160, overflow: "hidden" }}
           onMouseLeave={() => setOpen(false)}
         >
-          {opts.map(o => (
-            <button
-              key={o.status}
-              onClick={() => { setOrders(prev => prev.map(x => x.id === order.id ? { ...x, status: o.status } : x)); setOpen(false); }}
-              style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", padding: "8px 12px", background: order.status === o.status ? "rgba(0,100,255,0.12)" : "transparent", border: "none", cursor: "pointer", transition: "background 0.12s", borderLeft: order.status === o.status ? `2px solid ${o.color}` : "2px solid transparent" }}
-              onMouseEnter={e => { if (order.status !== o.status) (e.currentTarget as HTMLElement).style.background = "rgba(0,80,200,0.1)"; }}
-              onMouseLeave={e => { if (order.status !== o.status) (e.currentTarget as HTMLElement).style.background = "transparent"; }}
-            >
-              <div style={{ width: 7, height: 7, borderRadius: "50%", background: o.color, boxShadow: `0 0 5px ${o.color}88` }} />
-              <span style={{ fontSize: 12, color: order.status === o.status ? "rgba(200,230,255,0.95)" : "rgba(150,190,240,0.8)", fontFamily: "'Times New Roman', serif" }}>{o.label}</span>
-            </button>
-          ))}
+          {statusOptions.map(statusOption => {
+            const isCurrentStatus = order.status === statusOption.status;
+            return (
+              <button
+                key={statusOption.status}
+                onClick={() => handleStatusChange(statusOption.status)}
+                style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", padding: "8px 12px", background: isCurrentStatus ? "rgba(0,100,255,0.12)" : "transparent", border: "none", cursor: "pointer", transition: "background 0.12s", borderLeft: isCurrentStatus ? `2px solid ${statusOption.color}` : "2px solid transparent" }}
+                onMouseEnter={e => { if (!isCurrentStatus) (e.currentTarget as HTMLElement).style.background = "rgba(0,80,200,0.1)"; }}
+                onMouseLeave={e => { if (!isCurrentStatus) (e.currentTarget as HTMLElement).style.background = "transparent"; }}
+              >
+                <div style={{ width: 7, height: 7, borderRadius: "50%", background: statusOption.color, boxShadow: `0 0 5px ${statusOption.color}88` }} />
+                <span style={{ fontSize: 12, color: isCurrentStatus ? "rgba(200,230,255,0.95)" : "rgba(150,190,240,0.8)", fontFamily: "'Times New Roman', serif" }}>{statusOption.label}</span>
+              </button>
+            );
+          })}
         </div>
       )}
     </div>
   );
 }
 
+// раздел "В работе" — показывает мастеров и их заказы
 function DashInWork({ orders, onBack, staff, setStaff, setOrders }: { orders: Order[]; onBack: () => void; staff: Staff[]; setStaff: (s: Staff[]) => void; setOrders: (fn: (prev: Order[]) => Order[]) => void }) {
-  const busyMasters = staff.filter(s => s.ordersActive > 0);
-  const freeMasters = staff.filter(s => s.ordersActive === 0);
-  const activeOrders = orders.filter(o => o.status === "progress" || o.status === "new");
+  // фильтрую мастеров по занятости
+  const busyMasters = staff.filter(staffMember => staffMember.ordersActive > 0);
+  const freeMasters = staff.filter(staffMember => staffMember.ordersActive === 0);
 
-  const toggleActivity = (id: string) => {
-    setStaff(staff.map(s => s.id === id ? { ...s, ordersActive: s.ordersActive > 0 ? 0 : 1 } : s));
+  // заказы которые сейчас в процессе
+  const activeOrders = orders.filter(orderItem => {
+    return orderItem.status === "progress" || orderItem.status === "new";
+  });
+
+  // переключает мастера между занят/свободен
+  const toggleActivity = (staffId: string) => {
+    console.log("переключаю активность мастера", staffId);
+    setStaff(staff.map(staffMember => staffMember.id === staffId ? { ...staffMember, ordersActive: staffMember.ordersActive > 0 ? 0 : 1 } : staffMember));
   };
 
   return (
@@ -271,17 +299,17 @@ function DashInWork({ orders, onBack, staff, setStaff, setOrders }: { orders: Or
           </div>
           {freeMasters.length === 0 ? (
             <div style={{ fontSize: 12, color: "rgba(100,140,200,0.5)", textAlign: "center", padding: "20px 0" }}>Все мастера заняты</div>
-          ) : freeMasters.map(s => (
-            <div key={s.id} className="flex items-center gap-3 py-3" style={{ borderBottom: "1px solid rgba(0,100,255,0.1)" }}>
+          ) : freeMasters.map(staffMember => (
+            <div key={staffMember.id} className="flex items-center gap-3 py-3" style={{ borderBottom: "1px solid rgba(0,100,255,0.1)" }}>
               <div style={{ width: 38, height: 38, borderRadius: "50%", background: "rgba(61,220,132,0.12)", border: "1px solid rgba(61,220,132,0.3)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
                 <Icon name="User" size={16} style={{ color: "#3ddc84" }} />
               </div>
               <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 12, color: "rgba(200,230,255,0.9)", fontFamily: "'Times New Roman', serif" }}>{s.name}</div>
-                <div style={{ fontSize: 10, color: "rgba(61,220,132,0.7)", marginTop: 1 }}>{s.role} · ★ {s.rating}</div>
+                <div style={{ fontSize: 12, color: "rgba(200,230,255,0.9)", fontFamily: "'Times New Roman', serif" }}>{staffMember.name}</div>
+                <div style={{ fontSize: 10, color: "rgba(61,220,132,0.7)", marginTop: 1 }}>{staffMember.role} · ★ {staffMember.rating}</div>
               </div>
               <button
-                onClick={() => toggleActivity(s.id)}
+                onClick={() => toggleActivity(staffMember.id)}
                 style={{ background: "rgba(255,184,48,0.1)", border: "1px solid rgba(255,184,48,0.3)", borderRadius: 8, padding: "4px 10px", fontSize: 10, color: "#ffb830", cursor: "pointer", display: "flex", alignItems: "center", gap: 4, transition: "all 0.2s" }}
                 onMouseEnter={e => (e.currentTarget.style.background = "rgba(255,184,48,0.2)")}
                 onMouseLeave={e => (e.currentTarget.style.background = "rgba(255,184,48,0.1)")}
@@ -301,20 +329,22 @@ function DashInWork({ orders, onBack, staff, setStaff, setOrders }: { orders: Or
               Заняты <span style={{ fontSize: 11, color: "rgba(255,184,48,0.6)" }}>({busyMasters.length})</span>
             </h3>
           </div>
-          {busyMasters.map(s => {
-            const theirOrders = activeOrders.filter(o => o.master.startsWith(s.name.split(" ")[0]));
+          {busyMasters.map(staffMember => {
+            // ищу заказы этого мастера по первому слову имени (фамилии)
+            const masterLastName = staffMember.name.split(" ")[0];
+            const theirOrders = activeOrders.filter(orderItem => orderItem.master.startsWith(masterLastName));
             return (
-              <div key={s.id} className="py-3" style={{ borderBottom: "1px solid rgba(0,100,255,0.1)" }}>
+              <div key={staffMember.id} className="py-3" style={{ borderBottom: "1px solid rgba(0,100,255,0.1)" }}>
                 <div className="flex items-center gap-3 mb-2">
                   <div style={{ width: 38, height: 38, borderRadius: "50%", background: "rgba(255,184,48,0.12)", border: "1px solid rgba(255,184,48,0.3)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
                     <Icon name="User" size={16} style={{ color: "#ffb830" }} />
                   </div>
                   <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: 12, color: "rgba(200,230,255,0.9)", fontFamily: "'Times New Roman', serif" }}>{s.name}</div>
-                    <div style={{ fontSize: 10, color: "rgba(255,184,48,0.7)", marginTop: 1 }}>{s.role} · {s.ordersActive} активных</div>
+                    <div style={{ fontSize: 12, color: "rgba(200,230,255,0.9)", fontFamily: "'Times New Roman', serif" }}>{staffMember.name}</div>
+                    <div style={{ fontSize: 10, color: "rgba(255,184,48,0.7)", marginTop: 1 }}>{staffMember.role} · {staffMember.ordersActive} активных</div>
                   </div>
                   <button
-                    onClick={() => toggleActivity(s.id)}
+                    onClick={() => toggleActivity(staffMember.id)}
                     style={{ background: "rgba(61,220,132,0.1)", border: "1px solid rgba(61,220,132,0.3)", borderRadius: 8, padding: "4px 10px", fontSize: 10, color: "#3ddc84", cursor: "pointer", display: "flex", alignItems: "center", gap: 4, transition: "all 0.2s" }}
                     onMouseEnter={e => (e.currentTarget.style.background = "rgba(61,220,132,0.2)")}
                     onMouseLeave={e => (e.currentTarget.style.background = "rgba(61,220,132,0.1)")}
@@ -323,12 +353,12 @@ function DashInWork({ orders, onBack, staff, setStaff, setOrders }: { orders: Or
                     Освободить
                   </button>
                 </div>
-                {theirOrders.map(o => (
-                  <div key={o.id} className="flex items-center gap-2 ml-12 py-1" style={{ borderTop: "1px solid rgba(0,80,200,0.1)" }}>
-                    <span style={{ fontSize: 10, color: "#60aaff" }}>{o.id}</span>
-                    <span style={{ fontSize: 10, color: "rgba(160,200,255,0.7)", flex: 1 }}>{o.device}</span>
-                    <span className={`status-badge ${STATUS_CLASS[o.status]}`} style={{ fontSize: 10 }}>{STATUS_LABELS[o.status]}</span>
-                    <OrderStatusDropdown order={o} setOrders={setOrders} />
+                {theirOrders.map(orderItem => (
+                  <div key={orderItem.id} className="flex items-center gap-2 ml-12 py-1" style={{ borderTop: "1px solid rgba(0,80,200,0.1)" }}>
+                    <span style={{ fontSize: 10, color: "#60aaff" }}>{orderItem.id}</span>
+                    <span style={{ fontSize: 10, color: "rgba(160,200,255,0.7)", flex: 1 }}>{orderItem.device}</span>
+                    <span className={`status-badge ${STATUS_CLASS[orderItem.status]}`} style={{ fontSize: 10 }}>{STATUS_LABELS[orderItem.status]}</span>
+                    <OrderStatusDropdown order={orderItem} setOrders={setOrders} />
                   </div>
                 ))}
               </div>
@@ -345,15 +375,15 @@ function DashInWork({ orders, onBack, staff, setStaff, setOrders }: { orders: Or
         <table className="table-neon w-full">
           <thead><tr><th>Номер</th><th>Клиент</th><th>Устройство</th><th>Мастер</th><th>Срок</th><th>Статус</th><th></th></tr></thead>
           <tbody>
-            {activeOrders.map(o => (
-              <tr key={o.id}>
-                <td style={{ color: "#60aaff", fontWeight: 600 }}>{o.id}</td>
-                <td>{o.client}</td>
-                <td>{o.device}</td>
-                <td>{o.master}</td>
-                <td>{o.deadline}</td>
-                <td><span className={`status-badge ${STATUS_CLASS[o.status]}`}>{STATUS_LABELS[o.status]}</span></td>
-                <td><OrderStatusDropdown order={o} setOrders={setOrders} /></td>
+            {activeOrders.map(orderItem => (
+              <tr key={orderItem.id}>
+                <td style={{ color: "#60aaff", fontWeight: 600 }}>{orderItem.id}</td>
+                <td>{orderItem.client}</td>
+                <td>{orderItem.device}</td>
+                <td>{orderItem.master}</td>
+                <td>{orderItem.deadline}</td>
+                <td><span className={`status-badge ${STATUS_CLASS[orderItem.status]}`}>{STATUS_LABELS[orderItem.status]}</span></td>
+                <td><OrderStatusDropdown order={orderItem} setOrders={setOrders} /></td>
               </tr>
             ))}
           </tbody>
@@ -480,15 +510,22 @@ function DashUrgent({ orders, onBack, setOrders }: { orders: Order[]; onBack: ()
   );
 }
 
-// ============ DASHBOARD ============
+// главная страница — статистика и быстрый доступ
+// TODO: добавить живые данные с сервера когда появится API
 function Dashboard({ orders, setOrders, staff, setStaff }: { orders: Order[]; setOrders: (fn: (prev: Order[]) => Order[]) => void; staff: Staff[]; setStaff: (s: Staff[]) => void }) {
   const [view, setView] = useState<DashView>("main");
 
+  // считаю статистику вручную потому что с бэка пока ничего нет
+  const totalOrdersCount = orders.length;
+  const activeOrdersCount = orders.filter(orderItem => orderItem.status === "progress" || orderItem.status === "new").length;
+  const readyOrdersCount = orders.filter(orderItem => orderItem.status === "ready").length;
+  const urgentOrdersCount = orders.filter(orderItem => orderItem.status === "urgent").length;
+
   const stats = {
-    total: orders.length,
-    active: orders.filter(o => o.status === "progress" || o.status === "new").length,
-    ready: orders.filter(o => o.status === "ready").length,
-    urgent: orders.filter(o => o.status === "urgent").length,
+    total: totalOrdersCount,
+    active: activeOrdersCount,
+    ready: readyOrdersCount,
+    urgent: urgentOrdersCount,
   };
 
   const monthData = [
@@ -557,13 +594,13 @@ function Dashboard({ orders, setOrders, staff, setStaff }: { orders: Order[]; se
             Последние заказы
           </h3>
           <div className="flex flex-col gap-2">
-            {orders.slice(0, 4).map(o => (
-              <div key={o.id} className="flex items-center justify-between py-1.5" style={{ borderBottom: "1px solid rgba(0,100,255,0.1)" }}>
+            {orders.slice(0, 4).map(orderItem => (
+              <div key={orderItem.id} className="flex items-center justify-between py-1.5" style={{ borderBottom: "1px solid rgba(0,100,255,0.1)" }}>
                 <div>
-                  <span style={{ fontSize: 11, color: "#60aaff", marginRight: 8 }}>{o.id}</span>
-                  <span style={{ fontSize: 11, color: "rgba(180,210,255,0.85)" }}>{o.client}</span>
+                  <span style={{ fontSize: 11, color: "#60aaff", marginRight: 8 }}>{orderItem.id}</span>
+                  <span style={{ fontSize: 11, color: "rgba(180,210,255,0.85)" }}>{orderItem.client}</span>
                 </div>
-                <span className={`status-badge ${STATUS_CLASS[o.status]}`}>{STATUS_LABELS[o.status]}</span>
+                <span className={`status-badge ${STATUS_CLASS[orderItem.status]}`}>{STATUS_LABELS[orderItem.status]}</span>
               </div>
             ))}
           </div>
@@ -573,22 +610,30 @@ function Dashboard({ orders, setOrders, staff, setStaff }: { orders: Order[]; se
   );
 }
 
-// ============ ЗАКАЗЫ ============
+// раздел со всеми заказами — таблица с поиском и фильтрами
 function Orders({ orders, setOrders, showError }: { orders: Order[]; setOrders: (o: Order[]) => void; showError: (k: string) => void }) {
   const [search, setSearch] = useState("");
   const [filterStatus, setFilterStatus] = useState<OrderStatus | "all">("all");
   const [selected, setSelected] = useState<Order | null>(null);
   const [showForm, setShowForm] = useState(false);
-  const [newOrder, setNewOrder] = useState({ client: "", phone: "", device: "", problem: "", master: "", deadline: "", cost: "", prepaid: "" });
 
-  const filtered = orders.filter(o => {
-    const q = search.toLowerCase();
-    const matchSearch = o.id.toLowerCase().includes(q) || o.client.toLowerCase().includes(q) || o.device.toLowerCase().includes(q);
-    const matchStatus = filterStatus === "all" || o.status === filterStatus;
+  // начальные пустые значения для формы нового заказа
+  const emptyOrderForm = { client: "", phone: "", device: "", problem: "", master: "", deadline: "", cost: "", prepaid: "" };
+  const [newOrder, setNewOrder] = useState(emptyOrderForm);
+
+  // фильтрация заказов по поиску и статусу
+  const filtered = orders.filter(orderItem => {
+    const searchQuery = search.toLowerCase();
+    const matchSearch = orderItem.id.toLowerCase().includes(searchQuery)
+      || orderItem.client.toLowerCase().includes(searchQuery)
+      || orderItem.device.toLowerCase().includes(searchQuery);
+    const matchStatus = filterStatus === "all" || orderItem.status === filterStatus;
     return matchSearch && matchStatus;
   });
 
+  // добавление нового заказа
   const handleAddOrder = () => {
+    console.log("открываю форму нового заказа");
     if (!newOrder.client || !newOrder.device || !newOrder.problem || !newOrder.master) {
       showError("FORM_EMPTY");
       return;
@@ -609,7 +654,7 @@ function Orders({ orders, setOrders, showError }: { orders: Order[]; setOrders: 
     };
     setOrders([order, ...orders]);
     setShowForm(false);
-    setNewOrder({ client: "", phone: "", device: "", problem: "", master: "", deadline: "", cost: "", prepaid: "" });
+    setNewOrder(emptyOrderForm);
   };
 
   return (
@@ -640,29 +685,37 @@ function Orders({ orders, setOrders, showError }: { orders: Order[]; setOrders: 
             </tr>
           </thead>
           <tbody>
-            {filtered.map(o => (
-              <tr key={o.id} className="cursor-pointer" onClick={() => setSelected(o)}>
-                <td style={{ color: "#60aaff", fontWeight: 600 }}>{o.id}</td>
-                <td>{o.client}</td>
-                <td>{o.device}</td>
-                <td>{o.master}</td>
-                <td>{o.created}</td>
-                <td style={{ color: o.status === "urgent" ? "#ff6060" : undefined }}>{o.deadline}</td>
-                <td style={{ color: "#3ddc84" }}>{o.cost.toLocaleString("ru-RU")} ₽</td>
-                <td><span className={`status-badge ${STATUS_CLASS[o.status]}`}>{STATUS_LABELS[o.status]}</span></td>
-                <td onClick={e => e.stopPropagation()}>
-                  <button
-                    onClick={() => { if (confirm(`Удалить заказ ${o.id}?`)) setOrders(orders.filter(x => x.id !== o.id)); }}
-                    style={{ background: "rgba(255,60,60,0.08)", border: "1px solid rgba(255,60,60,0.2)", borderRadius: 6, padding: "4px 8px", cursor: "pointer", display: "flex", alignItems: "center", transition: "all 0.15s" }}
-                    onMouseEnter={e => (e.currentTarget.style.background = "rgba(255,60,60,0.2)")}
-                    onMouseLeave={e => (e.currentTarget.style.background = "rgba(255,60,60,0.08)")}
-                    title="Удалить заказ"
-                  >
-                    <Icon name="Trash2" size={13} style={{ color: "#ff6060" }} />
-                  </button>
-                </td>
-              </tr>
-            ))}
+            {filtered.map(orderItem => {
+              const isUrgent = orderItem.status === "urgent";
+              return (
+                <tr key={orderItem.id} className="cursor-pointer" onClick={() => setSelected(orderItem)}>
+                  <td style={{ color: "#60aaff", fontWeight: 600 }}>{orderItem.id}</td>
+                  <td>{orderItem.client}</td>
+                  <td>{orderItem.device}</td>
+                  <td>{orderItem.master}</td>
+                  <td>{orderItem.created}</td>
+                  <td style={{ color: isUrgent ? "#ff6060" : undefined }}>{orderItem.deadline}</td>
+                  <td style={{ color: "#3ddc84" }}>{orderItem.cost.toLocaleString("ru-RU")} ₽</td>
+                  <td><span className={`status-badge ${STATUS_CLASS[orderItem.status]}`}>{STATUS_LABELS[orderItem.status]}</span></td>
+                  <td onClick={event => event.stopPropagation()}>
+                    <button
+                      onClick={() => {
+                        const confirmed = confirm(`Удалить заказ ${orderItem.id}?`);
+                        if (confirmed) {
+                          setOrders(orders.filter(x => x.id !== orderItem.id));
+                        }
+                      }}
+                      style={{ background: "rgba(255,60,60,0.08)", border: "1px solid rgba(255,60,60,0.2)", borderRadius: 6, padding: "4px 8px", cursor: "pointer", display: "flex", alignItems: "center", transition: "all 0.15s" }}
+                      onMouseEnter={e => (e.currentTarget.style.background = "rgba(255,60,60,0.2)")}
+                      onMouseLeave={e => (e.currentTarget.style.background = "rgba(255,60,60,0.08)")}
+                      title="Удалить заказ"
+                    >
+                      <Icon name="Trash2" size={13} style={{ color: "#ff6060" }} />
+                    </button>
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
         {filtered.length === 0 && (
@@ -746,27 +799,28 @@ function Orders({ orders, setOrders, showError }: { orders: Order[]; setOrders: 
   );
 }
 
-// ============ СОТРУДНИКИ ============
+// список сотрудников карточками
+// временно — потом сделать редактирование
 function StaffSection() {
   return (
     <div className="animate-fade-in">
       <h2 className="mb-4" style={{ fontFamily: "'Times New Roman', serif", fontSize: 18, color: "var(--neon-cyan)", textShadow: "var(--neon-glow)" }}>Сотрудники</h2>
       <div className="grid gap-4" style={{ gridTemplateColumns: "repeat(2, 1fr)" }}>
-        {DEMO_STAFF.map(s => (
-          <div key={s.id} className="card-dark rounded-lg p-4">
+        {DEMO_STAFF.map(staffMember => (
+          <div key={staffMember.id} className="card-dark rounded-lg p-4">
             <div className="flex items-start justify-between mb-3">
               <div>
-                <div style={{ fontFamily: "'Times New Roman', serif", fontSize: 14, color: "rgba(200,225,255,0.95)", marginBottom: 3 }}>{s.name}</div>
-                <div style={{ fontSize: 11, color: "rgba(0,180,255,0.7)" }}>{s.role}</div>
+                <div style={{ fontFamily: "'Times New Roman', serif", fontSize: 14, color: "rgba(200,225,255,0.95)", marginBottom: 3 }}>{staffMember.name}</div>
+                <div style={{ fontSize: 11, color: "rgba(0,180,255,0.7)" }}>{staffMember.role}</div>
               </div>
-              <div style={{ background: "rgba(0,100,255,0.15)", border: "1px solid rgba(0,150,255,0.3)", borderRadius: 20, padding: "2px 10px", fontSize: 11, color: "#60aaff" }}>{s.id}</div>
+              <div style={{ background: "rgba(0,100,255,0.15)", border: "1px solid rgba(0,150,255,0.3)", borderRadius: 20, padding: "2px 10px", fontSize: 11, color: "#60aaff" }}>{staffMember.id}</div>
             </div>
             <div className="grid gap-2" style={{ gridTemplateColumns: "1fr 1fr 1fr" }}>
               <div style={{ gridColumn: "1 / -1" }}>
                 <div style={{ fontSize: 10, color: "rgba(100,140,200,0.6)", marginBottom: 2 }}>Телефон</div>
-                <div style={{ fontSize: 12, color: "rgba(180,215,255,0.9)" }}>{s.phone}</div>
+                <div style={{ fontSize: 12, color: "rgba(180,215,255,0.9)" }}>{staffMember.phone}</div>
               </div>
-              {[["Активных", String(s.ordersActive)], ["Всего", String(s.ordersTotal)], ["Рейтинг", `★ ${s.rating}`]].map(([label, value]) => (
+              {[["Активных", String(staffMember.ordersActive)], ["Всего", String(staffMember.ordersTotal)], ["Рейтинг", `★ ${staffMember.rating}`]].map(([label, value]) => (
                 <div key={label}>
                   <div style={{ fontSize: 10, color: "rgba(100,140,200,0.6)", marginBottom: 2 }}>{label}</div>
                   <div style={{ fontSize: 12, color: "rgba(180,215,255,0.9)" }}>{value}</div>
@@ -878,12 +932,16 @@ function PartsSection({ showError }: { showError: (k: string) => void }) {
   );
 }
 
-// ============ РАСПИСАНИЕ ============
+// расписание приёма и выдачи
 function ScheduleSection() {
-  const today = "28.04.2026";
-  const byDate = DEMO_SCHEDULE.reduce((acc, e) => {
-    if (!acc[e.date]) acc[e.date] = [];
-    acc[e.date].push(e);
+  const today = "28.04.2026"; // TODO: брать динамически через new Date()
+
+  // группирую записи по дате — сделал через reduce
+  const byDate = DEMO_SCHEDULE.reduce((acc, scheduleItem) => {
+    if (!acc[scheduleItem.date]) {
+      acc[scheduleItem.date] = [];
+    }
+    acc[scheduleItem.date].push(scheduleItem);
     return acc;
   }, {} as Record<string, ScheduleEntry[]>);
 
@@ -891,32 +949,38 @@ function ScheduleSection() {
     <div className="animate-fade-in">
       <h2 className="mb-4" style={{ fontFamily: "'Times New Roman', serif", fontSize: 18, color: "var(--neon-cyan)", textShadow: "var(--neon-glow)" }}>Расписание</h2>
       <div className="grid gap-4" style={{ gridTemplateColumns: "repeat(3, 1fr)" }}>
-        {Object.entries(byDate).map(([date, entries]) => (
-          <div key={date} className="card-dark rounded-lg p-4" style={{ borderColor: date === today ? "rgba(0,229,255,0.5)" : undefined, boxShadow: date === today ? "var(--neon-glow)" : undefined }}>
-            <div className="flex items-center gap-2 mb-3">
-              <span style={{ fontFamily: "'Times New Roman', serif", fontSize: 14, color: date === today ? "var(--neon-cyan)" : "rgba(160,200,255,0.85)", textShadow: date === today ? "var(--neon-glow)" : undefined }}>{date}</span>
-              {date === today && <span style={{ fontSize: 10, color: "var(--neon-cyan)", background: "rgba(0,180,255,0.1)", padding: "1px 7px", borderRadius: 10, border: "1px solid rgba(0,180,255,0.3)" }}>Сегодня</span>}
-            </div>
-            {entries.map(e => (
-              <div key={e.id} className="py-2" style={{ borderBottom: "1px solid rgba(0,100,255,0.1)" }}>
-                <div className="flex items-center justify-between mb-1">
-                  <span style={{ fontSize: 13, color: "#60aaff", fontWeight: 700 }}>{e.time}</span>
-                  <span style={{ fontSize: 10, background: e.type === "Приём" ? "rgba(0,100,255,0.2)" : "rgba(0,180,100,0.15)", color: e.type === "Приём" ? "#60aaff" : "#3ddc84", padding: "1px 7px", borderRadius: 3, border: `1px solid ${e.type === "Приём" ? "rgba(0,100,255,0.4)" : "rgba(0,180,100,0.3)"}` }}>{e.type}</span>
-                </div>
-                <div style={{ fontSize: 11, color: "rgba(180,215,255,0.85)", marginBottom: 2 }}>{e.client} — {e.device}</div>
-                <div style={{ fontSize: 10, color: "rgba(100,140,200,0.6)" }}>{e.master}</div>
+        {Object.entries(byDate).map(([date, entries]) => {
+          const isToday = date === today;
+          return (
+            <div key={date} className="card-dark rounded-lg p-4" style={{ borderColor: isToday ? "rgba(0,229,255,0.5)" : undefined, boxShadow: isToday ? "var(--neon-glow)" : undefined }}>
+              <div className="flex items-center gap-2 mb-3">
+                <span style={{ fontFamily: "'Times New Roman', serif", fontSize: 14, color: isToday ? "var(--neon-cyan)" : "rgba(160,200,255,0.85)", textShadow: isToday ? "var(--neon-glow)" : undefined }}>{date}</span>
+                {isToday && <span style={{ fontSize: 10, color: "var(--neon-cyan)", background: "rgba(0,180,255,0.1)", padding: "1px 7px", borderRadius: 10, border: "1px solid rgba(0,180,255,0.3)" }}>Сегодня</span>}
               </div>
-            ))}
-          </div>
-        ))}
+              {entries.map(scheduleItem => (
+                <div key={scheduleItem.id} className="py-2" style={{ borderBottom: "1px solid rgba(0,100,255,0.1)" }}>
+                  <div className="flex items-center justify-between mb-1">
+                    <span style={{ fontSize: 13, color: "#60aaff", fontWeight: 700 }}>{scheduleItem.time}</span>
+                    <span style={{ fontSize: 10, background: scheduleItem.type === "Приём" ? "rgba(0,100,255,0.2)" : "rgba(0,180,100,0.15)", color: scheduleItem.type === "Приём" ? "#60aaff" : "#3ddc84", padding: "1px 7px", borderRadius: 3, border: `1px solid ${scheduleItem.type === "Приём" ? "rgba(0,100,255,0.4)" : "rgba(0,180,100,0.3)"}` }}>{scheduleItem.type}</span>
+                  </div>
+                  <div style={{ fontSize: 11, color: "rgba(180,215,255,0.85)", marginBottom: 2 }}>{scheduleItem.client} — {scheduleItem.device}</div>
+                  <div style={{ fontSize: 10, color: "rgba(100,140,200,0.6)" }}>{scheduleItem.master}</div>
+                </div>
+              ))}
+            </div>
+          );
+        })}
       </div>
     </div>
   );
 }
 
-// ============ ОТЧЁТЫ ============
+// отчёты — графики и таблицы по месяцам
+// это важно!! менеджер просил в первую очередь
 function Reports() {
   const [view, setView] = useState<"table" | "chart">("chart");
+
+  // данные по месяцам — пока хардкод
   const data = [
     { month: "Январь", orders: 34, revenue: 187000, avg: 5500, done: 30 },
     { month: "Февраль", orders: 41, revenue: 223000, avg: 5439, done: 38 },
@@ -990,16 +1054,19 @@ function Reports() {
               <tr><th>Месяц</th><th>Заказов</th><th>Выполнено</th><th>Выручка</th><th>Средний чек</th><th>Конверсия</th></tr>
             </thead>
             <tbody>
-              {data.map(d => (
-                <tr key={d.month}>
-                  <td style={{ fontFamily: "'Times New Roman', serif", color: "rgba(180,215,255,0.9)" }}>{d.month}</td>
-                  <td>{d.orders}</td>
-                  <td style={{ color: "#3ddc84" }}>{d.done}</td>
-                  <td style={{ color: "#60aaff", fontWeight: 600 }}>{d.revenue.toLocaleString("ru-RU")} ₽</td>
-                  <td>{d.avg.toLocaleString("ru-RU")} ₽</td>
-                  <td style={{ color: "#ffb830" }}>{Math.round((d.done / d.orders) * 100)}%</td>
-                </tr>
-              ))}
+              {data.map(dataItem => {
+                const conversionPercent = Math.round((dataItem.done / dataItem.orders) * 100);
+                return (
+                  <tr key={dataItem.month}>
+                    <td style={{ fontFamily: "'Times New Roman', serif", color: "rgba(180,215,255,0.9)" }}>{dataItem.month}</td>
+                    <td>{dataItem.orders}</td>
+                    <td style={{ color: "#3ddc84" }}>{dataItem.done}</td>
+                    <td style={{ color: "#60aaff", fontWeight: 600 }}>{dataItem.revenue.toLocaleString("ru-RU")} ₽</td>
+                    <td>{dataItem.avg.toLocaleString("ru-RU")} ₽</td>
+                    <td style={{ color: "#ffb830" }}>{conversionPercent}%</td>
+                  </tr>
+                );
+              })}
               <tr style={{ background: "rgba(0,100,255,0.07)", fontWeight: 700 }}>
                 <td style={{ color: "var(--neon-cyan)" }}>Итого</td>
                 <td style={{ color: "var(--neon-cyan)" }}>{data.reduce((s, d) => s + d.orders, 0)}</td>
@@ -1016,16 +1083,20 @@ function Reports() {
   );
 }
 
-// ============ ЛИЧНЫЙ КАБИНЕТ ============
+// личный кабинет клиента — отслеживание заказа
 function Cabinet() {
   const [trackId, setTrackId] = useState("");
   const [trackResult, setTrackResult] = useState<Order | null | "not_found">(null);
-  const clientOrders = DEMO_ORDERS.filter(o => o.client === "Иванов А.П.");
+  // история заказов конкретного клиента (пока жёстко вшит Иванов — потом сделать динамически)
+  const clientOrders = DEMO_ORDERS.filter(orderItem => orderItem.client === "Иванов А.П.");
 
   const handleTrack = () => {
-    if (!trackId.trim()) return;
-    const found = DEMO_ORDERS.find(o => o.id.toLowerCase() === trackId.trim().toLowerCase());
-    setTrackResult(found || "not_found");
+    const trimmedId = trackId.trim();
+    if (!trimmedId) return;
+    console.log("ищу заказ по номеру:", trimmedId);
+    const foundOrder = DEMO_ORDERS.find(orderItem => orderItem.id.toLowerCase() === trimmedId.toLowerCase());
+    // если нашли — показываем, если нет — строку "not_found"
+    setTrackResult(foundOrder || "not_found");
   };
 
   return (
@@ -1098,7 +1169,10 @@ function Cabinet() {
   );
 }
 
-// ============ ГЛАВНЫЙ КОМПОНЕНТ ============
+// главный компонент приложения
+// здесь навигация и общий layout
+
+// список пунктов меню
 const NAV: { key: Section; label: string; icon: string; hotkey: string }[] = [
   { key: "dashboard", label: "Главная", icon: "LayoutDashboard", hotkey: "Alt+1" },
   { key: "orders", label: "Заказы", icon: "ClipboardList", hotkey: "Alt+2" },
@@ -1123,17 +1197,28 @@ export default function App() {
     setError(ERROR_MESSAGES[key] || ERROR_MESSAGES.SAVE_ERROR);
   }, []);
 
+  // горячие клавиши Alt+1...7 для переключения разделов
+  // не трогать, работает
   useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      if (!e.altKey) return;
-      const map: Record<string, Section> = {
-        "1": "dashboard", "2": "orders", "3": "staff",
-        "4": "parts", "5": "schedule", "6": "reports", "7": "cabinet",
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (!event.altKey) return;
+      const keyToSectionMap: Record<string, Section> = {
+        "1": "dashboard",
+        "2": "orders",
+        "3": "staff",
+        "4": "parts",
+        "5": "schedule",
+        "6": "reports",
+        "7": "cabinet",
       };
-      if (map[e.key]) { e.preventDefault(); setSection(map[e.key]); }
+      const targetSection = keyToSectionMap[event.key];
+      if (targetSection) {
+        event.preventDefault();
+        setSection(targetSection);
+      }
     };
-    window.addEventListener("keydown", handler);
-    return () => window.removeEventListener("keydown", handler);
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
   }, []);
 
   return (
@@ -1216,34 +1301,37 @@ export default function App() {
 
       <div style={{ display: "flex", flex: 1 }}>
         <aside style={{ width: 210, background: "rgba(2,7,20,0.97)", borderRight: "1px solid rgba(0,80,200,0.15)", display: "flex", flexDirection: "column", padding: "20px 0", position: "sticky", top: 56, height: "calc(100vh - 56px)", overflowY: "auto" }}>
-          {NAV.map(n => (
-            <button
-              key={n.key}
-              onClick={() => setSection(n.key)}
-              title={n.hotkey}
-              style={{
-                display: "flex", alignItems: "center", gap: 10,
-                padding: "10px 20px",
-                fontFamily: "'Times New Roman', serif",
-                fontSize: 13,
-                color: section === n.key ? "#fff" : "rgba(120,160,220,0.75)",
-                background: section === n.key ? "linear-gradient(90deg, rgba(0,130,255,0.2), transparent)" : "transparent",
-                borderLeft: section === n.key ? "2px solid var(--neon-cyan)" : "2px solid transparent",
-                textAlign: "left", width: "100%", cursor: "pointer",
-                transition: "all 0.2s",
-              }}
-            >
-              <Icon name={n.icon as string} size={15} style={{ color: section === n.key ? "var(--neon-cyan)" : "rgba(80,120,200,0.6)", flexShrink: 0 }} />
-              {n.label}
-            </button>
-          ))}
+          {NAV.map(navItem => {
+            const isActive = section === navItem.key;
+            return (
+              <button
+                key={navItem.key}
+                onClick={() => setSection(navItem.key)}
+                title={navItem.hotkey}
+                style={{
+                  display: "flex", alignItems: "center", gap: 10,
+                  padding: "10px 20px",
+                  fontFamily: "'Times New Roman', serif",
+                  fontSize: 13,
+                  color: isActive ? "#fff" : "rgba(120,160,220,0.75)",
+                  background: isActive ? "linear-gradient(90deg, rgba(0,130,255,0.2), transparent)" : "transparent",
+                  borderLeft: isActive ? "2px solid var(--neon-cyan)" : "2px solid transparent",
+                  textAlign: "left", width: "100%", cursor: "pointer",
+                  transition: "all 0.2s",
+                }}
+              >
+                <Icon name={navItem.icon as string} size={15} style={{ color: isActive ? "var(--neon-cyan)" : "rgba(80,120,200,0.6)", flexShrink: 0 }} />
+                {navItem.label}
+              </button>
+            );
+          })}
 
           <div style={{ marginTop: "auto", padding: "16px 20px 4px", borderTop: "1px solid rgba(0,80,200,0.1)" }}>
             <div style={{ fontSize: 10, color: "rgba(60,100,160,0.6)", marginBottom: 6 }}>Горячие клавиши</div>
-            {NAV.map(n => (
-              <div key={n.key} className="flex items-center justify-between mb-1">
-                <span style={{ fontSize: 10, color: "rgba(80,120,180,0.55)" }}>{n.label}</span>
-                <span className="kbd-hint">{n.hotkey}</span>
+            {NAV.map(navItem => (
+              <div key={navItem.key} className="flex items-center justify-between mb-1">
+                <span style={{ fontSize: 10, color: "rgba(80,120,180,0.55)" }}>{navItem.label}</span>
+                <span className="kbd-hint">{navItem.hotkey}</span>
               </div>
             ))}
           </div>
