@@ -203,6 +203,7 @@ function OrderStatusDropdown({ order, setOrders }: { order: Order; setOrders: (f
     { status: "new", label: "Начать ремонт", color: "#60aaff" },
     { status: "progress", label: "В работе", color: "#ffb830" },
     { status: "ready", label: "Готов к выдаче", color: "#3ddc84" },
+    { status: "done", label: "Готов", color: "#a78bfa" },
   ];
   return (
     <div style={{ position: "relative" }}>
@@ -635,7 +636,7 @@ function Orders({ orders, setOrders, showError }: { orders: Order[]; setOrders: 
         <table className="table-neon w-full">
           <thead>
             <tr>
-              <th>Номер</th><th>Клиент</th><th>Устройство</th><th>Мастер</th><th>Создан</th><th>Срок</th><th>Стоимость</th><th>Статус</th>
+              <th>Номер</th><th>Клиент</th><th>Устройство</th><th>Мастер</th><th>Создан</th><th>Срок</th><th>Стоимость</th><th>Статус</th><th></th>
             </tr>
           </thead>
           <tbody>
@@ -649,6 +650,17 @@ function Orders({ orders, setOrders, showError }: { orders: Order[]; setOrders: 
                 <td style={{ color: o.status === "urgent" ? "#ff6060" : undefined }}>{o.deadline}</td>
                 <td style={{ color: "#3ddc84" }}>{o.cost.toLocaleString("ru-RU")} ₽</td>
                 <td><span className={`status-badge ${STATUS_CLASS[o.status]}`}>{STATUS_LABELS[o.status]}</span></td>
+                <td onClick={e => e.stopPropagation()}>
+                  <button
+                    onClick={() => { if (confirm(`Удалить заказ ${o.id}?`)) setOrders(orders.filter(x => x.id !== o.id)); }}
+                    style={{ background: "rgba(255,60,60,0.08)", border: "1px solid rgba(255,60,60,0.2)", borderRadius: 6, padding: "4px 8px", cursor: "pointer", display: "flex", alignItems: "center", transition: "all 0.15s" }}
+                    onMouseEnter={e => (e.currentTarget.style.background = "rgba(255,60,60,0.2)")}
+                    onMouseLeave={e => (e.currentTarget.style.background = "rgba(255,60,60,0.08)")}
+                    title="Удалить заказ"
+                  >
+                    <Icon name="Trash2" size={13} style={{ color: "#ff6060" }} />
+                  </button>
+                </td>
               </tr>
             ))}
           </tbody>
