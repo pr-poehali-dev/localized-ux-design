@@ -1,1397 +1,590 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState } from "react";
 import Icon from "@/components/ui/icon";
 
-// типы для заказов и всего остального
-// TODO: потом вынести в отдельный файл types.ts
-type OrderStatus = "new" | "progress" | "ready" | "done" | "urgent";
-type Section = "dashboard" | "orders" | "staff" | "parts" | "schedule" | "reports" | "cabinet";
+const HERO_IMAGE = "https://cdn.poehali.dev/projects/b1be1f87-1564-4f29-a677-068277bf3d11/files/16854267-548b-4293-ab82-a6228dcb2465.jpg";
+const REPAIR_IMAGE = "https://cdn.poehali.dev/projects/b1be1f87-1564-4f29-a677-068277bf3d11/files/f37b82e3-841c-4942-bec1-17a5e54fba2a.jpg";
 
-interface Order {
-  id: string;
-  client: string;
-  phone: string;
-  device: string;
-  problem: string;
-  master: string;
-  status: OrderStatus;
-  created: string;
-  deadline: string;
-  cost: number;
-  prepaid: number;
-  history: HistoryEntry[];
-}
-
-interface HistoryEntry {
-  date: string;
-  action: string;
-  user: string;
-}
-
-interface Staff {
-  id: string;
-  name: string;
-  role: string;
-  phone: string;
-  ordersActive: number;
-  ordersTotal: number;
-  rating: number;
-}
-
-interface Part {
-  id: string;
-  name: string;
-  sku: string;
-  category: string;
-  stock: number;
-  minStock: number;
-  price: number;
-  supplier: string;
-}
-
-interface ScheduleEntry {
-  id: string;
-  date: string;
-  time: string;
-  client: string;
-  device: string;
-  master: string;
-  type: string;
-}
-
-interface ErrorNotification {
-  code: string;
-  message: string;
-  recommendation: string;
-}
-
-// тестовые данные (потом заменить на запросы к серверу)
-// не трогать, работает
-const DEMO_ORDERS: Order[] = [
-  { id: "ЗК-001", client: "Иванов А.П.", phone: "+7 (912) 345-67-89", device: "iPhone 13 Pro", problem: "Разбит экран, не работает тачскрин", master: "Сидоров В.И.", status: "progress", created: "22.04.2026", deadline: "25.04.2026", cost: 8500, prepaid: 2000, history: [{ date: "22.04 10:15", action: "Принят в работу", user: "Администратор" }, { date: "22.04 14:30", action: "Диагностика завершена", user: "Сидоров В.И." }, { date: "23.04 09:00", action: "Заказана запчасть: экран", user: "Сидоров В.И." }] },
-  { id: "ЗК-002", client: "Петрова М.С.", phone: "+7 (916) 234-56-78", device: "Samsung Galaxy S22", problem: "Не заряжается, гнутый разъём", master: "Козлов А.Е.", status: "ready", created: "21.04.2026", deadline: "24.04.2026", cost: 3200, prepaid: 1000, history: [{ date: "21.04 11:00", action: "Принят в работу", user: "Администратор" }, { date: "22.04 16:45", action: "Разъём заменён, проверка завершена", user: "Козлов А.Е." }] },
-  { id: "ЗК-003", client: "Смирнов Д.К.", phone: "+7 (901) 678-90-12", device: "Ноутбук ASUS X550", problem: "Не включается, жалобы на падение", master: "Сидоров В.И.", status: "urgent", created: "23.04.2026", deadline: "24.04.2026", cost: 12000, prepaid: 5000, history: [{ date: "23.04 13:00", action: "Принят срочно", user: "Администратор" }, { date: "23.04 14:00", action: "Выявлено: неисправна материнская плата", user: "Сидоров В.И." }] },
-  { id: "ЗК-004", client: "Новикова Е.А.", phone: "+7 (923) 456-78-90", device: "iPad Air 4", problem: "Треснул дисплей", master: "Морозов П.Н.", status: "new", created: "24.04.2026", deadline: "27.04.2026", cost: 11000, prepaid: 3000, history: [{ date: "24.04 09:30", action: "Принят в работу", user: "Администратор" }] },
-  { id: "ЗК-005", client: "Федоров С.В.", phone: "+7 (905) 123-45-67", device: "Huawei P40", problem: "Не работает камера, замена модуля", master: "Козлов А.Е.", status: "done", created: "19.04.2026", deadline: "22.04.2026", cost: 5500, prepaid: 5500, history: [{ date: "19.04 10:00", action: "Принят в работу", user: "Администратор" }, { date: "20.04 12:00", action: "Камера заменена", user: "Козлов А.Е." }, { date: "20.04 16:00", action: "Выдан клиенту", user: "Администратор" }] },
-  { id: "ЗК-006", client: "Кузнецов Р.О.", phone: "+7 (910) 987-65-43", device: "MacBook Pro 2020", problem: "Клавиатура — залита жидкостью", master: "Морозов П.Н.", status: "progress", created: "22.04.2026", deadline: "26.04.2026", cost: 18000, prepaid: 6000, history: [{ date: "22.04 15:00", action: "Принят в работу", user: "Администратор" }, { date: "23.04 11:00", action: "Разборка, чистка платы", user: "Морозов П.Н." }] },
+// данные услуг
+const services = [
+  {
+    id: 1,
+    icon: "Smartphone",
+    title: "Ремонт смартфонов",
+    description: "Замена экранов, аккумуляторов, разъёмов. Ремонт после залития. Работаем со всеми брендами: Apple, Samsung, Xiaomi, Huawei и др.",
+    price: "от 500 ₽",
+    time: "от 30 минут",
+  },
+  {
+    id: 2,
+    icon: "Laptop",
+    title: "Ремонт ноутбуков",
+    description: "Замена матриц, клавиатур, аккумуляторов. Чистка от пыли, замена термопасты. Восстановление после залития.",
+    price: "от 800 ₽",
+    time: "от 1 часа",
+  },
+  {
+    id: 3,
+    icon: "Monitor",
+    title: "Ремонт компьютеров",
+    description: "Диагностика и ремонт системных блоков. Замена комплектующих. Установка Windows и программного обеспечения.",
+    price: "от 700 ₽",
+    time: "от 2 часов",
+  },
+  {
+    id: 4,
+    icon: "Gamepad2",
+    title: "Ремонт приставок",
+    description: "Ремонт PlayStation, Xbox, Nintendo. Замена дисковода, джойстиков, разъёмов HDMI. Прошивка консолей.",
+    price: "от 600 ₽",
+    time: "от 1 часа",
+  },
+  {
+    id: 5,
+    icon: "Tablet",
+    title: "Ремонт планшетов",
+    description: "Замена экранов и тачскринов, аккумуляторов. Ремонт разъёмов зарядки. iPad, Samsung, Lenovo и другие.",
+    price: "от 700 ₽",
+    time: "от 1 часа",
+  },
+  {
+    id: 6,
+    icon: "Headphones",
+    title: "Ремонт наушников и техники",
+    description: "Ремонт беспроводных и проводных наушников. Мелкий ремонт бытовой электроники и аксессуаров.",
+    price: "от 300 ₽",
+    time: "от 20 минут",
+  },
 ];
 
-const DEMO_STAFF: Staff[] = [
-  { id: "С-001", name: "Сидоров Василий Иванович", role: "Старший мастер", phone: "+7 (912) 111-22-33", ordersActive: 2, ordersTotal: 142, rating: 4.9 },
-  { id: "С-002", name: "Козлов Александр Евгеньевич", role: "Мастер", phone: "+7 (912) 444-55-66", ordersActive: 1, ordersTotal: 98, rating: 4.7 },
-  { id: "С-003", name: "Морозов Павел Николаевич", role: "Мастер", phone: "+7 (912) 777-88-99", ordersActive: 2, ordersTotal: 76, rating: 4.8 },
-  { id: "С-004", name: "Волкова Анна Сергеевна", role: "Администратор", phone: "+7 (912) 000-11-22", ordersActive: 0, ordersTotal: 0, rating: 5.0 },
+// преимущества
+const advantages = [
+  { icon: "ShieldCheck", title: "Гарантия на ремонт", desc: "Даём письменную гарантию на все виды работ до 90 дней" },
+  { icon: "Zap", title: "Срочный ремонт", desc: "Большинство поломок устраняем при клиенте за 30–60 минут" },
+  { icon: "BadgePercent", title: "Честные цены", desc: "Бесплатная диагностика. Называем стоимость до начала ремонта" },
+  { icon: "Wrench", title: "Только оригиналы", desc: "Используем качественные запчасти от проверенных поставщиков" },
+  { icon: "UserCheck", title: "Опытные мастера", desc: "Мастера с опытом от 5 лет. Постоянно повышаем квалификацию" },
+  { icon: "MapPin", title: "Удобное расположение", desc: "Находимся в центре города. Удобная парковка рядом" },
 ];
 
-const DEMO_PARTS: Part[] = [
-  { id: "З-001", name: "Экран iPhone 13 Pro (OLED)", sku: "SCR-IP13P-BLK", category: "Дисплеи", stock: 3, minStock: 2, price: 4800, supplier: "ТехноПоставка" },
-  { id: "З-002", name: "Аккумулятор Samsung Galaxy S22", sku: "BAT-SGS22-OEM", category: "Аккумуляторы", stock: 7, minStock: 3, price: 1200, supplier: "МобилЗапчасть" },
-  { id: "З-003", name: "Разъём Type-C Samsung (universal)", sku: "CON-USB-C-SAM", category: "Разъёмы", stock: 12, minStock: 5, price: 350, supplier: "МобилЗапчасть" },
-  { id: "З-004", name: "Камера Huawei P40 (основная)", sku: "CAM-HW-P40-M", category: "Камеры", stock: 2, minStock: 2, price: 2100, supplier: "ТехноПоставка" },
-  { id: "З-005", name: "Клавиатура MacBook Pro 2020 RU", sku: "KBD-MBP20-RU", category: "Клавиатуры", stock: 1, minStock: 2, price: 8900, supplier: "АппАкс" },
-  { id: "З-006", name: "Термопаста Arctic MX-4 (4г)", sku: "THM-ARC-MX4-4G", category: "Расходники", stock: 15, minStock: 5, price: 280, supplier: "КомпМастер" },
-  { id: "З-007", name: "Экран iPad Air 4 (оригинал)", sku: "SCR-IPAD-A4-ORG", category: "Дисплеи", stock: 0, minStock: 1, price: 7200, supplier: "АппАкс" },
+// прайс лист
+const priceList = [
+  { device: "iPhone", service: "Замена экрана", price: "от 2 500 ₽" },
+  { device: "iPhone", service: "Замена аккумулятора", price: "от 1 200 ₽" },
+  { device: "Samsung", service: "Замена экрана", price: "от 1 800 ₽" },
+  { device: "Samsung", service: "Замена аккумулятора", price: "от 900 ₽" },
+  { device: "Ноутбук", service: "Замена матрицы", price: "от 2 000 ₽" },
+  { device: "Ноутбук", service: "Чистка + термопаста", price: "от 800 ₽" },
+  { device: "ПК", service: "Диагностика", price: "Бесплатно" },
+  { device: "ПК", service: "Установка Windows", price: "от 700 ₽" },
+  { device: "PlayStation", service: "Замена дисковода", price: "от 1 500 ₽" },
+  { device: "Xbox", service: "Ремонт HDMI разъёма", price: "от 1 200 ₽" },
 ];
 
-const DEMO_SCHEDULE: ScheduleEntry[] = [
-  { id: "РП-001", date: "28.04.2026", time: "10:00", client: "Захаров Б.П.", device: "iPhone 12", master: "Сидоров В.И.", type: "Приём" },
-  { id: "РП-002", date: "28.04.2026", time: "11:30", client: "Лебедева О.К.", device: "Lenovo IdeaPad", master: "Морозов П.Н.", type: "Выдача" },
-  { id: "РП-003", date: "28.04.2026", time: "14:00", client: "Тимофеев А.С.", device: "Samsung A52", master: "Козлов А.Е.", type: "Приём" },
-  { id: "РП-004", date: "29.04.2026", time: "10:30", client: "Иванов А.П.", device: "iPhone 13 Pro", master: "Сидоров В.И.", type: "Выдача" },
-  { id: "РП-005", date: "29.04.2026", time: "13:00", client: "Борисова Н.Д.", device: "ASUS ZenBook", master: "Морозов П.Н.", type: "Приём" },
-  { id: "РП-006", date: "30.04.2026", time: "09:30", client: "Смирнов Д.К.", device: "Ноутбук ASUS", master: "Сидоров В.И.", type: "Выдача" },
+// отзывы
+const reviews = [
+  { name: "Алексей К.", rating: 5, text: "Принёс iPhone с разбитым экраном — заменили за 40 минут прямо при мне. Качество отличное, цена разумная. Рекомендую!", device: "iPhone 13" },
+  { name: "Мария П.", rating: 5, text: "Ноутбук начал жутко греться и тормозить. Сделали чистку и замену термопасты, теперь работает как новый. Спасибо мастерам!", device: "Ноутбук Lenovo" },
+  { name: "Дмитрий В.", rating: 5, text: "Починили PlayStation 5 — не читал диски. Обратился в 3 места, везде говорили дорого или долго. Здесь сделали за день и с гарантией.", device: "PlayStation 5" },
+  { name: "Ольга С.", rating: 5, text: "Залила телефон. Думала всё, но ребята спасли! Восстановили данные и починили. Очень благодарна за профессионализм.", device: "Samsung Galaxy" },
 ];
 
-// вспомогательные штуки для статусов
-const STATUS_LABELS: Record<OrderStatus, string> = {
-  new: "Новый",
-  progress: "В работе",
-  ready: "Готов",
-  done: "Выдан",
-  urgent: "Срочный",
-};
-
-const STATUS_CLASS: Record<OrderStatus, string> = {
-  new: "status-new",
-  progress: "status-progress",
-  ready: "status-ready",
-  done: "status-done",
-  urgent: "status-urgent",
-};
-
-const ERROR_MESSAGES: Record<string, ErrorNotification> = {
-  FORM_EMPTY: { code: "ERR-001", message: "Не заполнены обязательные поля", recommendation: "Заполните все поля, отмеченные *, и повторите попытку." },
-  ORDER_NOT_FOUND: { code: "ERR-002", message: "Заказ не найден", recommendation: "Проверьте номер заказа и повторите поиск." },
-  LOW_STOCK: { code: "ERR-003", message: "Недостаточно запчастей на складе", recommendation: "Оформите заявку поставщику для пополнения запаса." },
-  SAVE_ERROR: { code: "ERR-004", message: "Ошибка сохранения данных", recommendation: "Проверьте подключение к сети и повторите попытку. Если ошибка повторяется — обратитесь в поддержку." },
-};
-
-// компонент для показа ошибок внизу экрана (типа toast уведомление)
-// скопировал идею со stackoverflow, немного переделал
-function ErrorToast({ err, onClose }: { err: ErrorNotification; onClose: () => void }) {
-  useEffect(() => {
-    const t = setTimeout(onClose, 6000);
-    return () => clearTimeout(t);
-  }, [onClose]);
-  return (
-    <div className="fixed bottom-6 right-6 z-50 animate-fade-in" style={{ maxWidth: 380 }}>
-      <div className="card-dark rounded-lg p-4" style={{ borderColor: "rgba(255,60,60,0.6)", boxShadow: "0 0 20px rgba(255,50,50,0.3)" }}>
-        <div className="flex items-start gap-3">
-          <Icon name="AlertTriangle" size={18} className="mt-0.5 flex-shrink-0" style={{ color: "#ff6060" }} />
-          <div className="flex-1">
-            <div className="flex items-center gap-2 mb-1">
-              <span className="kbd-hint">{err.code}</span>
-              <span style={{ fontFamily: "'Times New Roman', serif", fontSize: 13, color: "#ff8080", fontWeight: 700 }}>{err.message}</span>
-            </div>
-            <p style={{ fontSize: 11, color: "rgba(180,210,255,0.8)", lineHeight: 1.5 }}>{err.recommendation}</p>
-          </div>
-          <button onClick={onClose} style={{ color: "rgba(120,150,200,0.7)", fontSize: 16, lineHeight: 1 }}>×</button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// маленький компонент для подсказок горячих клавиш
-function HotkeyHint({ keys, label }: { keys: string; label: string }) {
-  return (
-    <span className="flex items-center gap-1.5" style={{ fontSize: 11, color: "rgba(100,150,220,0.7)" }}>
-      <span className="kbd-hint">{keys}</span>
-      <span>{label}</span>
-    </span>
-  );
-}
-
-// подтипы для главной страницы (dashboard)
-// это нужно чтобы переключаться между видами
-
-type DashView = "main" | "all_orders" | "in_work" | "ready" | "urgent";
-
-// показывает все заказы в таблице
-function DashAllOrders({ orders, onBack }: { orders: Order[]; onBack: () => void }) {
-  const totalOrdersCount = orders.length; // сколько всего заказов
-  return (
-    <div className="animate-fade-in">
-      <div className="flex items-center gap-3 mb-4">
-        <button onClick={onBack} className="neon-btn px-3 py-1.5 rounded flex items-center gap-2" style={{ fontSize: 12 }}>
-          <Icon name="ArrowLeft" size={14} style={{ color: "var(--neon-cyan)" }} />
-          Назад
-        </button>
-        <h2 style={{ fontFamily: "'Times New Roman', serif", fontSize: 18, color: "var(--neon-cyan)", textShadow: "var(--neon-glow)" }}>
-          Все заказы <span style={{ fontSize: 13, color: "rgba(100,150,220,0.6)" }}>— {totalOrdersCount} шт.</span>
-        </h2>
-      </div>
-      <div className="card-dark rounded-lg overflow-hidden">
-        <table className="table-neon w-full">
-          <thead><tr><th>Номер</th><th>Клиент</th><th>Устройство</th><th>Мастер</th><th>Создан</th><th>Срок</th><th>Стоимость</th><th>Статус</th></tr></thead>
-          <tbody>
-            {orders.map(orderItem => (
-              <tr key={orderItem.id}>
-                <td style={{ color: "#60aaff", fontWeight: 600 }}>{orderItem.id}</td>
-                <td>{orderItem.client}</td>
-                <td>{orderItem.device}</td>
-                <td>{orderItem.master}</td>
-                <td>{orderItem.created}</td>
-                <td>{orderItem.deadline}</td>
-                <td style={{ color: "#3ddc84" }}>{orderItem.cost.toLocaleString("ru-RU")} ₽</td>
-                <td><span className={`status-badge ${STATUS_CLASS[orderItem.status]}`}>{STATUS_LABELS[orderItem.status]}</span></td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  );
-}
-
-// дропдаун для смены статуса заказа
-// я не знаю почему но это нужно делать через отдельный компонент
-function OrderStatusDropdown({ order, setOrders }: { order: Order; setOrders: (fn: (prev: Order[]) => Order[]) => void }) {
-  const [open, setOpen] = useState(false);
-
-  // все возможные статусы с цветами
-  const statusOptions: { status: OrderStatus; label: string; color: string }[] = [
-    { status: "new", label: "Начать ремонт", color: "#60aaff" },
-    { status: "progress", label: "В работе", color: "#ffb830" },
-    { status: "ready", label: "Готов к выдаче", color: "#3ddc84" },
-    { status: "done", label: "Готов", color: "#a78bfa" },
-  ];
-
-  const handleStatusChange = (newStatus: OrderStatus) => {
-    console.log("меняю статус заказа на:", newStatus);
-    setOrders(prev => prev.map(x => x.id === order.id ? { ...x, status: newStatus } : x));
-    setOpen(false);
-  };
-
-  return (
-    <div style={{ position: "relative" }}>
-      <button
-        onClick={() => setOpen(v => !v)}
-        style={{ background: "rgba(0,100,255,0.1)", border: "1px solid rgba(0,130,255,0.25)", borderRadius: 7, padding: "4px 9px", fontSize: 10, color: "var(--neon-cyan)", cursor: "pointer", display: "flex", alignItems: "center", gap: 4, transition: "all 0.15s" }}
-        onMouseEnter={e => (e.currentTarget.style.background = "rgba(0,100,255,0.2)")}
-        onMouseLeave={e => (e.currentTarget.style.background = "rgba(0,100,255,0.1)")}
-      >
-        <Icon name="RefreshCw" size={11} style={{ color: "var(--neon-cyan)" }} />
-        Статус
-        <Icon name="ChevronDown" size={10} style={{ color: "var(--neon-cyan)", transform: open ? "rotate(180deg)" : "none", transition: "transform 0.15s" }} />
-      </button>
-      {open && (
-        <div
-          style={{ position: "absolute", top: "calc(100% + 4px)", right: 0, background: "rgba(4,12,30,0.98)", border: "1px solid rgba(0,100,255,0.25)", borderRadius: 8, boxShadow: "0 8px 24px rgba(0,0,0,0.6)", zIndex: 50, minWidth: 160, overflow: "hidden" }}
-          onMouseLeave={() => setOpen(false)}
-        >
-          {statusOptions.map(statusOption => {
-            const isCurrentStatus = order.status === statusOption.status;
-            return (
-              <button
-                key={statusOption.status}
-                onClick={() => handleStatusChange(statusOption.status)}
-                style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", padding: "8px 12px", background: isCurrentStatus ? "rgba(0,100,255,0.12)" : "transparent", border: "none", cursor: "pointer", transition: "background 0.12s", borderLeft: isCurrentStatus ? `2px solid ${statusOption.color}` : "2px solid transparent" }}
-                onMouseEnter={e => { if (!isCurrentStatus) (e.currentTarget as HTMLElement).style.background = "rgba(0,80,200,0.1)"; }}
-                onMouseLeave={e => { if (!isCurrentStatus) (e.currentTarget as HTMLElement).style.background = "transparent"; }}
-              >
-                <div style={{ width: 7, height: 7, borderRadius: "50%", background: statusOption.color, boxShadow: `0 0 5px ${statusOption.color}88` }} />
-                <span style={{ fontSize: 12, color: isCurrentStatus ? "rgba(200,230,255,0.95)" : "rgba(150,190,240,0.8)", fontFamily: "'Times New Roman', serif" }}>{statusOption.label}</span>
-              </button>
-            );
-          })}
-        </div>
-      )}
-    </div>
-  );
-}
-
-// раздел "В работе" — показывает мастеров и их заказы
-function DashInWork({ orders, onBack, staff, setStaff, setOrders }: { orders: Order[]; onBack: () => void; staff: Staff[]; setStaff: (s: Staff[]) => void; setOrders: (fn: (prev: Order[]) => Order[]) => void }) {
-  // фильтрую мастеров по занятости
-  const busyMasters = staff.filter(staffMember => staffMember.ordersActive > 0);
-  const freeMasters = staff.filter(staffMember => staffMember.ordersActive === 0);
-
-  // заказы которые сейчас в процессе
-  const activeOrders = orders.filter(orderItem => {
-    return orderItem.status === "progress" || orderItem.status === "new";
-  });
-
-  // переключает мастера между занят/свободен
-  const toggleActivity = (staffId: string) => {
-    console.log("переключаю активность мастера", staffId);
-    setStaff(staff.map(staffMember => staffMember.id === staffId ? { ...staffMember, ordersActive: staffMember.ordersActive > 0 ? 0 : 1 } : staffMember));
-  };
-
-  return (
-    <div className="animate-fade-in">
-      <div className="flex items-center gap-3 mb-4">
-        <button onClick={onBack} className="neon-btn px-3 py-1.5 rounded flex items-center gap-2" style={{ fontSize: 12 }}>
-          <Icon name="ArrowLeft" size={14} style={{ color: "var(--neon-cyan)" }} />
-          Назад
-        </button>
-        <h2 style={{ fontFamily: "'Times New Roman', serif", fontSize: 18, color: "var(--neon-cyan)", textShadow: "var(--neon-glow)" }}>
-          В работе <span style={{ fontSize: 13, color: "rgba(100,150,220,0.6)" }}>— {activeOrders.length} заказов</span>
-        </h2>
-      </div>
-      <div className="grid gap-4 mb-5" style={{ gridTemplateColumns: "1fr 1fr" }}>
-        {/* Свободные — слева */}
-        <div className="card-dark rounded-lg p-4" style={{ borderColor: "rgba(61,220,132,0.35)", boxShadow: "0 0 12px rgba(61,220,132,0.1)" }}>
-          <div className="flex items-center gap-2 mb-4">
-            <Icon name="UserCheck" size={16} style={{ color: "#3ddc84" }} />
-            <h3 style={{ fontFamily: "'Times New Roman', serif", fontSize: 14, color: "#3ddc84", textShadow: "0 0 8px rgba(61,220,132,0.4)" }}>
-              Свободны <span style={{ fontSize: 11, color: "rgba(61,220,132,0.6)" }}>({freeMasters.length})</span>
-            </h3>
-          </div>
-          {freeMasters.length === 0 ? (
-            <div style={{ fontSize: 12, color: "rgba(100,140,200,0.5)", textAlign: "center", padding: "20px 0" }}>Все мастера заняты</div>
-          ) : freeMasters.map(staffMember => (
-            <div key={staffMember.id} className="flex items-center gap-3 py-3" style={{ borderBottom: "1px solid rgba(0,100,255,0.1)" }}>
-              <div style={{ width: 38, height: 38, borderRadius: "50%", background: "rgba(61,220,132,0.12)", border: "1px solid rgba(61,220,132,0.3)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                <Icon name="User" size={16} style={{ color: "#3ddc84" }} />
-              </div>
-              <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 12, color: "rgba(200,230,255,0.9)", fontFamily: "'Times New Roman', serif" }}>{staffMember.name}</div>
-                <div style={{ fontSize: 10, color: "rgba(61,220,132,0.7)", marginTop: 1 }}>{staffMember.role} · ★ {staffMember.rating}</div>
-              </div>
-              <button
-                onClick={() => toggleActivity(staffMember.id)}
-                style={{ background: "rgba(255,184,48,0.1)", border: "1px solid rgba(255,184,48,0.3)", borderRadius: 8, padding: "4px 10px", fontSize: 10, color: "#ffb830", cursor: "pointer", display: "flex", alignItems: "center", gap: 4, transition: "all 0.2s" }}
-                onMouseEnter={e => (e.currentTarget.style.background = "rgba(255,184,48,0.2)")}
-                onMouseLeave={e => (e.currentTarget.style.background = "rgba(255,184,48,0.1)")}
-              >
-                <Icon name="PlayCircle" size={11} style={{ color: "#ffb830" }} />
-                В работу
-              </button>
-            </div>
-          ))}
-        </div>
-
-        {/* Занятые — справа */}
-        <div className="card-dark rounded-lg p-4" style={{ borderColor: "rgba(255,184,48,0.3)", boxShadow: "0 0 12px rgba(255,184,48,0.08)" }}>
-          <div className="flex items-center gap-2 mb-4">
-            <Icon name="UserCog" size={16} style={{ color: "#ffb830" }} />
-            <h3 style={{ fontFamily: "'Times New Roman', serif", fontSize: 14, color: "#ffb830", textShadow: "0 0 8px rgba(255,184,48,0.4)" }}>
-              Заняты <span style={{ fontSize: 11, color: "rgba(255,184,48,0.6)" }}>({busyMasters.length})</span>
-            </h3>
-          </div>
-          {busyMasters.map(staffMember => {
-            // ищу заказы этого мастера по первому слову имени (фамилии)
-            const masterLastName = staffMember.name.split(" ")[0];
-            const theirOrders = activeOrders.filter(orderItem => orderItem.master.startsWith(masterLastName));
-            return (
-              <div key={staffMember.id} className="py-3" style={{ borderBottom: "1px solid rgba(0,100,255,0.1)" }}>
-                <div className="flex items-center gap-3 mb-2">
-                  <div style={{ width: 38, height: 38, borderRadius: "50%", background: "rgba(255,184,48,0.12)", border: "1px solid rgba(255,184,48,0.3)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                    <Icon name="User" size={16} style={{ color: "#ffb830" }} />
-                  </div>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: 12, color: "rgba(200,230,255,0.9)", fontFamily: "'Times New Roman', serif" }}>{staffMember.name}</div>
-                    <div style={{ fontSize: 10, color: "rgba(255,184,48,0.7)", marginTop: 1 }}>{staffMember.role} · {staffMember.ordersActive} активных</div>
-                  </div>
-                  <button
-                    onClick={() => toggleActivity(staffMember.id)}
-                    style={{ background: "rgba(61,220,132,0.1)", border: "1px solid rgba(61,220,132,0.3)", borderRadius: 8, padding: "4px 10px", fontSize: 10, color: "#3ddc84", cursor: "pointer", display: "flex", alignItems: "center", gap: 4, transition: "all 0.2s" }}
-                    onMouseEnter={e => (e.currentTarget.style.background = "rgba(61,220,132,0.2)")}
-                    onMouseLeave={e => (e.currentTarget.style.background = "rgba(61,220,132,0.1)")}
-                  >
-                    <Icon name="PauseCircle" size={11} style={{ color: "#3ddc84" }} />
-                    Освободить
-                  </button>
-                </div>
-                {theirOrders.map(orderItem => (
-                  <div key={orderItem.id} className="flex items-center gap-2 ml-12 py-1" style={{ borderTop: "1px solid rgba(0,80,200,0.1)" }}>
-                    <span style={{ fontSize: 10, color: "#60aaff" }}>{orderItem.id}</span>
-                    <span style={{ fontSize: 10, color: "rgba(160,200,255,0.7)", flex: 1 }}>{orderItem.device}</span>
-                    <span className={`status-badge ${STATUS_CLASS[orderItem.status]}`} style={{ fontSize: 10 }}>{STATUS_LABELS[orderItem.status]}</span>
-                    <OrderStatusDropdown order={orderItem} setOrders={setOrders} />
-                  </div>
-                ))}
-              </div>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* Таблица активных заказов */}
-      <div className="card-dark rounded-lg overflow-hidden">
-        <div style={{ padding: "10px 14px", borderBottom: "1px solid rgba(0,100,255,0.15)" }}>
-          <span style={{ fontFamily: "'Times New Roman', serif", fontSize: 13, color: "var(--neon-cyan)" }}>Активные заказы</span>
-        </div>
-        <table className="table-neon w-full">
-          <thead><tr><th>Номер</th><th>Клиент</th><th>Устройство</th><th>Мастер</th><th>Срок</th><th>Статус</th><th></th></tr></thead>
-          <tbody>
-            {activeOrders.map(orderItem => (
-              <tr key={orderItem.id}>
-                <td style={{ color: "#60aaff", fontWeight: 600 }}>{orderItem.id}</td>
-                <td>{orderItem.client}</td>
-                <td>{orderItem.device}</td>
-                <td>{orderItem.master}</td>
-                <td>{orderItem.deadline}</td>
-                <td><span className={`status-badge ${STATUS_CLASS[orderItem.status]}`}>{STATUS_LABELS[orderItem.status]}</span></td>
-                <td><OrderStatusDropdown order={orderItem} setOrders={setOrders} /></td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  );
-}
-
-function DashReady({ orders, onBack, setOrders }: { orders: Order[]; onBack: () => void; setOrders: (fn: (prev: Order[]) => Order[]) => void }) {
-  const readyOrders = orders.filter(o => o.status === "ready");
-  return (
-    <div className="animate-fade-in">
-      <div className="flex items-center gap-3 mb-4">
-        <button onClick={onBack} className="neon-btn px-3 py-1.5 rounded flex items-center gap-2" style={{ fontSize: 12 }}>
-          <Icon name="ArrowLeft" size={14} style={{ color: "var(--neon-cyan)" }} />
-          Назад
-        </button>
-        <h2 style={{ fontFamily: "'Times New Roman', serif", fontSize: 18, color: "#3ddc84", textShadow: "0 0 12px rgba(61,220,132,0.5)" }}>
-          Готовы к выдаче <span style={{ fontSize: 13, color: "rgba(61,220,132,0.5)" }}>— {readyOrders.length} шт.</span>
-        </h2>
-      </div>
-      <div className="grid gap-3 mb-4" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))" }}>
-        {readyOrders.map(o => (
-          <div key={o.id} className="card-dark rounded-lg p-4" style={{ borderColor: "rgba(61,220,132,0.4)", boxShadow: "0 0 14px rgba(61,220,132,0.12)" }}>
-            <div className="flex items-start justify-between mb-3">
-              <span style={{ fontSize: 14, color: "#3ddc84", fontWeight: 700, textShadow: "0 0 8px rgba(61,220,132,0.5)" }}>{o.id}</span>
-              <span className="status-badge status-ready">Готов</span>
-            </div>
-            <div style={{ fontSize: 13, color: "rgba(200,230,255,0.95)", fontFamily: "'Times New Roman', serif", marginBottom: 4 }}>{o.client}</div>
-            <div style={{ fontSize: 11, color: "rgba(130,170,230,0.8)", marginBottom: 8 }}>{o.device}</div>
-            <div style={{ height: 1, background: "rgba(61,220,132,0.15)", marginBottom: 8 }} />
-            <div className="grid gap-1.5" style={{ gridTemplateColumns: "1fr 1fr" }}>
-              <div>
-                <div style={{ fontSize: 10, color: "rgba(100,140,200,0.6)" }}>Мастер</div>
-                <div style={{ fontSize: 11, color: "rgba(180,215,255,0.85)" }}>{o.master}</div>
-              </div>
-              <div>
-                <div style={{ fontSize: 10, color: "rgba(100,140,200,0.6)" }}>Телефон</div>
-                <div style={{ fontSize: 11, color: "rgba(180,215,255,0.85)" }}>{o.phone}</div>
-              </div>
-              <div>
-                <div style={{ fontSize: 10, color: "rgba(100,140,200,0.6)" }}>Стоимость</div>
-                <div style={{ fontSize: 12, color: "#3ddc84", fontWeight: 600 }}>{o.cost.toLocaleString("ru-RU")} ₽</div>
-              </div>
-              <div>
-                <div style={{ fontSize: 10, color: "rgba(100,140,200,0.6)" }}>Оплачено</div>
-                <div style={{ fontSize: 11, color: o.prepaid >= o.cost ? "#3ddc84" : "#ffb830" }}>{o.prepaid.toLocaleString("ru-RU")} ₽</div>
-              </div>
-            </div>
-            {o.prepaid < o.cost && (
-              <div style={{ marginTop: 10, padding: "6px 10px", background: "rgba(255,184,48,0.1)", border: "1px solid rgba(255,184,48,0.3)", borderRadius: 5, fontSize: 11, color: "#ffb830" }}>
-                ⚠ Доплата: {(o.cost - o.prepaid).toLocaleString("ru-RU")} ₽
-              </div>
-            )}
-            <div style={{ marginTop: 10 }}>
-              <OrderStatusDropdown order={o} setOrders={setOrders} />
-            </div>
-          </div>
-        ))}
-        {readyOrders.length === 0 && (
-          <div style={{ fontSize: 13, color: "rgba(100,140,200,0.5)", textAlign: "center", padding: "40px 0", gridColumn: "1 / -1" }}>Готовых к выдаче заказов нет</div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-function DashUrgent({ orders, onBack, setOrders }: { orders: Order[]; onBack: () => void; setOrders: (fn: (prev: Order[]) => Order[]) => void }) {
-  const urgentOrders = orders.filter(o => o.status === "urgent");
-  return (
-    <div className="animate-fade-in">
-      <div className="flex items-center gap-3 mb-4">
-        <button onClick={onBack} className="neon-btn px-3 py-1.5 rounded flex items-center gap-2" style={{ fontSize: 12 }}>
-          <Icon name="ArrowLeft" size={14} style={{ color: "var(--neon-cyan)" }} />
-          Назад
-        </button>
-        <h2 style={{ fontFamily: "'Times New Roman', serif", fontSize: 18, color: "#ff6060", textShadow: "0 0 15px rgba(255,96,96,0.6)" }}>
-          Срочные заказы <span style={{ fontSize: 13, color: "rgba(255,96,96,0.5)" }}>— {urgentOrders.length} шт.</span>
-        </h2>
-      </div>
-      {urgentOrders.length === 0 ? (
-        <div style={{ fontSize: 13, color: "rgba(100,140,200,0.5)", textAlign: "center", padding: "60px 0" }}>Срочных заказов нет</div>
-      ) : (
-        <div className="flex flex-col gap-3">
-          {urgentOrders.map((o, idx) => (
-            <div key={o.id} className="card-dark rounded-lg p-5" style={{ borderColor: "rgba(255,96,96,0.5)", boxShadow: "0 0 18px rgba(255,50,50,0.15)" }}>
-              <div className="flex items-center gap-4">
-                <div style={{ fontSize: 28, fontWeight: 900, color: "rgba(255,96,96,0.3)", fontFamily: "'Times New Roman', serif", minWidth: 32 }}>#{idx + 1}</div>
-                <div style={{ flex: 1 }}>
-                  <div className="flex items-center gap-3 mb-2">
-                    <span style={{ fontSize: 15, color: "#ff6060", fontWeight: 700, textShadow: "0 0 10px rgba(255,96,96,0.6)" }}>{o.id}</span>
-                    <span className="status-badge status-urgent">Срочный</span>
-                    <span style={{ fontSize: 10, color: "rgba(255,96,96,0.7)", marginLeft: "auto" }}>Срок: <strong style={{ color: "#ff6060" }}>{o.deadline}</strong></span>
-                  </div>
-                  <div className="grid gap-2" style={{ gridTemplateColumns: "repeat(4, 1fr)" }}>
-                    {[["Клиент", o.client], ["Устройство", o.device], ["Мастер", o.master], ["Стоимость", `${o.cost.toLocaleString("ru-RU")} ₽`]].map(([k, v]) => (
-                      <div key={k}>
-                        <div style={{ fontSize: 10, color: "rgba(100,140,200,0.6)" }}>{k}</div>
-                        <div style={{ fontSize: 11, color: "rgba(200,225,255,0.9)" }}>{v}</div>
-                      </div>
-                    ))}
-                  </div>
-                  <div style={{ marginTop: 10, padding: "6px 12px", background: "rgba(255,50,50,0.08)", border: "1px solid rgba(255,50,50,0.2)", borderRadius: 5 }}>
-                    <span style={{ fontSize: 10, color: "rgba(255,100,100,0.7)" }}>Проблема: </span>
-                    <span style={{ fontSize: 11, color: "rgba(200,225,255,0.85)" }}>{o.problem}</span>
-                  </div>
-                  {o.history.length > 0 && (
-                    <div style={{ marginTop: 8, fontSize: 10, color: "rgba(100,140,200,0.6)" }}>
-                      Последнее: <span style={{ color: "rgba(160,200,255,0.7)" }}>{o.history[o.history.length - 1].action}</span>
-                      <span style={{ marginLeft: 6, color: "rgba(100,140,200,0.5)" }}>— {o.history[o.history.length - 1].date}</span>
-                    </div>
-                  )}
-                  <div style={{ marginTop: 10 }}>
-                    <OrderStatusDropdown order={o} setOrders={setOrders} />
-                  </div>
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-// главная страница — статистика и быстрый доступ
-// TODO: добавить живые данные с сервера когда появится API
-function Dashboard({ orders, setOrders, staff, setStaff }: { orders: Order[]; setOrders: (fn: (prev: Order[]) => Order[]) => void; staff: Staff[]; setStaff: (s: Staff[]) => void }) {
-  const [view, setView] = useState<DashView>("main");
-
-  // считаю статистику вручную потому что с бэка пока ничего нет
-  const totalOrdersCount = orders.length;
-  const activeOrdersCount = orders.filter(orderItem => orderItem.status === "progress" || orderItem.status === "new").length;
-  const readyOrdersCount = orders.filter(orderItem => orderItem.status === "ready").length;
-  const urgentOrdersCount = orders.filter(orderItem => orderItem.status === "urgent").length;
-
-  const stats = {
-    total: totalOrdersCount,
-    active: activeOrdersCount,
-    ready: readyOrdersCount,
-    urgent: urgentOrdersCount,
-  };
-
-  const monthData = [
-    { month: "Янв", count: 34, revenue: 187000 },
-    { month: "Фев", count: 41, revenue: 223000 },
-    { month: "Мар", count: 38, revenue: 198000 },
-    { month: "Апр", count: 29, revenue: 161000 },
-  ];
-  const maxCount = Math.max(...monthData.map(d => d.count));
-
-  if (view === "all_orders") return <DashAllOrders orders={orders} onBack={() => setView("main")} />;
-  if (view === "in_work") return <DashInWork orders={orders} onBack={() => setView("main")} staff={staff} setStaff={setStaff} setOrders={setOrders} />;
-  if (view === "ready") return <DashReady orders={orders} onBack={() => setView("main")} setOrders={setOrders} />;
-  if (view === "urgent") return <DashUrgent orders={orders} onBack={() => setView("main")} setOrders={setOrders} />;
-
-  return (
-    <div className="animate-fade-in">
-      <h2 className="mb-4" style={{ fontFamily: "'Times New Roman', serif", fontSize: 18, color: "var(--neon-cyan)", textShadow: "var(--neon-glow)" }}>
-        Панель управления
-      </h2>
-      <div className="grid grid-cols-4 gap-3 mb-6">
-        {[
-          { label: "Всего заказов", value: stats.total, icon: "ClipboardList", color: "#60aaff", view: "all_orders" as DashView },
-          { label: "В работе", value: stats.active, icon: "Wrench", color: "#ffb830", view: "in_work" as DashView },
-          { label: "Готовы к выдаче", value: stats.ready, icon: "CheckCircle", color: "#3ddc84", view: "ready" as DashView },
-          { label: "Срочные", value: stats.urgent, icon: "Zap", color: "#ff6060", view: "urgent" as DashView },
-        ].map((s) => (
-          <button
-            key={s.label}
-            onClick={() => setView(s.view)}
-            className="card-dark rounded-lg p-4 text-left"
-            style={{ cursor: "pointer", transition: "all 0.2s", display: "block", width: "100%", background: undefined }}
-            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = s.color + "88"; (e.currentTarget as HTMLElement).style.boxShadow = `0 0 20px ${s.color}22`; }}
-            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = ""; (e.currentTarget as HTMLElement).style.boxShadow = ""; }}
-          >
-            <div className="flex items-center justify-between mb-2">
-              <span style={{ fontSize: 11, color: "rgba(130,170,230,0.7)", fontFamily: "'Times New Roman', serif", letterSpacing: "0.06em" }}>{s.label}</span>
-              <div className="flex items-center gap-1.5">
-                <Icon name={s.icon as string} size={16} style={{ color: s.color }} />
-                <Icon name="ChevronRight" size={12} style={{ color: s.color + "88" }} />
-              </div>
-            </div>
-            <div style={{ fontSize: 28, fontWeight: 700, color: s.color, textShadow: `0 0 15px ${s.color}66`, fontFamily: "'Times New Roman', serif" }}>{s.value}</div>
-          </button>
-        ))}
-      </div>
-
-      <div className="grid gap-4" style={{ gridTemplateColumns: "1fr 1fr" }}>
-        <div className="card-dark rounded-lg p-4">
-          <h3 style={{ fontFamily: "'Times New Roman', serif", fontSize: 14, color: "var(--neon-cyan)", marginBottom: 16 }}>
-            Количество заказов по месяцам
-          </h3>
-          <div className="flex items-end gap-3" style={{ height: 140 }}>
-            {monthData.map((d) => (
-              <div key={d.month} className="flex flex-col items-center flex-1 gap-1">
-                <span style={{ fontSize: 10, color: "#60aaff" }}>{d.count}</span>
-                <div className="chart-bar w-full rounded-sm" style={{ height: `${(d.count / maxCount) * 110}px` }} />
-                <span style={{ fontSize: 10, color: "rgba(130,170,230,0.7)" }}>{d.month}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        <div className="card-dark rounded-lg p-4">
-          <h3 style={{ fontFamily: "'Times New Roman', serif", fontSize: 14, color: "var(--neon-cyan)", marginBottom: 12 }}>
-            Последние заказы
-          </h3>
-          <div className="flex flex-col gap-2">
-            {orders.slice(0, 4).map(orderItem => (
-              <div key={orderItem.id} className="flex items-center justify-between py-1.5" style={{ borderBottom: "1px solid rgba(0,100,255,0.1)" }}>
-                <div>
-                  <span style={{ fontSize: 11, color: "#60aaff", marginRight: 8 }}>{orderItem.id}</span>
-                  <span style={{ fontSize: 11, color: "rgba(180,210,255,0.85)" }}>{orderItem.client}</span>
-                </div>
-                <span className={`status-badge ${STATUS_CLASS[orderItem.status]}`}>{STATUS_LABELS[orderItem.status]}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// раздел со всеми заказами — таблица с поиском и фильтрами
-function Orders({ orders, setOrders, showError }: { orders: Order[]; setOrders: (o: Order[]) => void; showError: (k: string) => void }) {
-  const [search, setSearch] = useState("");
-  const [filterStatus, setFilterStatus] = useState<OrderStatus | "all">("all");
-  const [selected, setSelected] = useState<Order | null>(null);
-  const [showForm, setShowForm] = useState(false);
-
-  // начальные пустые значения для формы нового заказа
-  const emptyOrderForm = { client: "", phone: "", device: "", problem: "", master: "", deadline: "", cost: "", prepaid: "" };
-  const [newOrder, setNewOrder] = useState(emptyOrderForm);
-
-  // фильтрация заказов по поиску и статусу
-  const filtered = orders.filter(orderItem => {
-    const searchQuery = search.toLowerCase();
-    const matchSearch = orderItem.id.toLowerCase().includes(searchQuery)
-      || orderItem.client.toLowerCase().includes(searchQuery)
-      || orderItem.device.toLowerCase().includes(searchQuery);
-    const matchStatus = filterStatus === "all" || orderItem.status === filterStatus;
-    return matchSearch && matchStatus;
-  });
-
-  // добавление нового заказа
-  const handleAddOrder = () => {
-    console.log("открываю форму нового заказа");
-    if (!newOrder.client || !newOrder.device || !newOrder.problem || !newOrder.master) {
-      showError("FORM_EMPTY");
-      return;
-    }
-    const order: Order = {
-      id: `ЗК-${String(orders.length + 1).padStart(3, "0")}`,
-      client: newOrder.client,
-      phone: newOrder.phone,
-      device: newOrder.device,
-      problem: newOrder.problem,
-      master: newOrder.master,
-      deadline: newOrder.deadline,
-      status: "new",
-      created: new Date().toLocaleDateString("ru-RU"),
-      cost: Number(newOrder.cost) || 0,
-      prepaid: Number(newOrder.prepaid) || 0,
-      history: [{ date: new Date().toLocaleString("ru-RU", { dateStyle: "short", timeStyle: "short" }), action: "Принят в работу", user: "Администратор" }],
-    };
-    setOrders([order, ...orders]);
-    setShowForm(false);
-    setNewOrder(emptyOrderForm);
-  };
-
-  return (
-    <div className="animate-fade-in">
-      <div className="flex items-center justify-between mb-4">
-        <h2 style={{ fontFamily: "'Times New Roman', serif", fontSize: 18, color: "var(--neon-cyan)", textShadow: "var(--neon-glow)" }}>Заказы</h2>
-        <div className="flex items-center gap-3">
-          <HotkeyHint keys="Alt+N" label="Новый заказ" />
-          <button className="neon-btn px-4 py-2 rounded" onClick={() => setShowForm(true)}>+ Новый заказ</button>
-        </div>
-      </div>
-
-      <div className="flex gap-3 mb-4">
-        <input className="input-neon" style={{ maxWidth: 260 }} placeholder="Поиск по ID, клиенту, устройству..." value={search} onChange={e => setSearch(e.target.value)} />
-        <select className="select-neon" value={filterStatus} onChange={e => setFilterStatus(e.target.value as OrderStatus | "all")}>
-          <option value="all">Все статусы</option>
-          {(Object.keys(STATUS_LABELS) as OrderStatus[]).map(s => (
-            <option key={s} value={s}>{STATUS_LABELS[s]}</option>
-          ))}
-        </select>
-      </div>
-
-      <div className="card-dark rounded-lg overflow-hidden">
-        <table className="table-neon w-full">
-          <thead>
-            <tr>
-              <th>Номер</th><th>Клиент</th><th>Устройство</th><th>Мастер</th><th>Создан</th><th>Срок</th><th>Стоимость</th><th>Статус</th><th></th>
-            </tr>
-          </thead>
-          <tbody>
-            {filtered.map(orderItem => {
-              const isUrgent = orderItem.status === "urgent";
-              return (
-                <tr key={orderItem.id} className="cursor-pointer" onClick={() => setSelected(orderItem)}>
-                  <td style={{ color: "#60aaff", fontWeight: 600 }}>{orderItem.id}</td>
-                  <td>{orderItem.client}</td>
-                  <td>{orderItem.device}</td>
-                  <td>{orderItem.master}</td>
-                  <td>{orderItem.created}</td>
-                  <td style={{ color: isUrgent ? "#ff6060" : undefined }}>{orderItem.deadline}</td>
-                  <td style={{ color: "#3ddc84" }}>{orderItem.cost.toLocaleString("ru-RU")} ₽</td>
-                  <td><span className={`status-badge ${STATUS_CLASS[orderItem.status]}`}>{STATUS_LABELS[orderItem.status]}</span></td>
-                  <td onClick={event => event.stopPropagation()}>
-                    <button
-                      onClick={() => {
-                        const confirmed = confirm(`Удалить заказ ${orderItem.id}?`);
-                        if (confirmed) {
-                          setOrders(orders.filter(x => x.id !== orderItem.id));
-                        }
-                      }}
-                      style={{ background: "rgba(255,60,60,0.08)", border: "1px solid rgba(255,60,60,0.2)", borderRadius: 6, padding: "4px 8px", cursor: "pointer", display: "flex", alignItems: "center", transition: "all 0.15s" }}
-                      onMouseEnter={e => (e.currentTarget.style.background = "rgba(255,60,60,0.2)")}
-                      onMouseLeave={e => (e.currentTarget.style.background = "rgba(255,60,60,0.08)")}
-                      title="Удалить заказ"
-                    >
-                      <Icon name="Trash2" size={13} style={{ color: "#ff6060" }} />
-                    </button>
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-        {filtered.length === 0 && (
-          <div className="text-center py-8" style={{ color: "rgba(100,140,200,0.5)" }}>Заказы не найдены</div>
-        )}
-      </div>
-
-      {/* Детали заказа */}
-      {selected && (
-        <div className="fixed inset-0 z-40 flex items-center justify-center modal-overlay" onClick={() => setSelected(null)}>
-          <div className="card-dark rounded-lg neon-border" style={{ width: 600, maxHeight: "80vh", overflow: "auto", padding: 24 }} onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between mb-4">
-              <span style={{ fontFamily: "'Times New Roman', serif", fontSize: 16, color: "var(--neon-cyan)", textShadow: "var(--neon-glow)" }}>Заказ {selected.id}</span>
-              <button onClick={() => setSelected(null)} style={{ color: "rgba(120,160,220,0.7)", fontSize: 20 }}>×</button>
-            </div>
-            <div className="grid gap-3 mb-4" style={{ gridTemplateColumns: "1fr 1fr" }}>
-              {([
-                ["Клиент", selected.client], ["Телефон", selected.phone],
-                ["Устройство", selected.device], ["Мастер", selected.master],
-                ["Создан", selected.created], ["Срок", selected.deadline],
-                ["Стоимость", `${selected.cost.toLocaleString("ru-RU")} ₽`],
-                ["Предоплата", `${selected.prepaid.toLocaleString("ru-RU")} ₽`],
-              ] as [string, string][]).map(([k, v]) => (
-                <div key={k}>
-                  <div style={{ fontSize: 10, color: "rgba(100,140,200,0.6)", marginBottom: 2 }}>{k}</div>
-                  <div style={{ fontSize: 12, color: "rgba(180,215,255,0.9)" }}>{v}</div>
-                </div>
-              ))}
-            </div>
-            <div style={{ marginBottom: 12 }}>
-              <div style={{ fontSize: 10, color: "rgba(100,140,200,0.6)", marginBottom: 4 }}>Неисправность</div>
-              <div style={{ fontSize: 12, color: "rgba(180,215,255,0.9)" }}>{selected.problem}</div>
-            </div>
-            <div>
-              <div style={{ fontSize: 11, color: "var(--neon-cyan)", marginBottom: 8, fontFamily: "'Times New Roman', serif" }}>История работ</div>
-              {selected.history.map((h, i) => (
-                <div key={i} className="flex gap-3 py-2" style={{ borderBottom: "1px solid rgba(0,100,255,0.1)" }}>
-                  <span style={{ fontSize: 10, color: "rgba(100,140,200,0.6)", whiteSpace: "nowrap" }}>{h.date}</span>
-                  <span style={{ fontSize: 11, color: "rgba(180,215,255,0.85)", flex: 1 }}>{h.action}</span>
-                  <span style={{ fontSize: 10, color: "rgba(100,140,200,0.5)" }}>{h.user}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Форма нового заказа */}
-      {showForm && (
-        <div className="fixed inset-0 z-40 flex items-center justify-center modal-overlay" onClick={() => setShowForm(false)}>
-          <div className="card-dark rounded-lg neon-border" style={{ width: 540, padding: 24 }} onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between mb-4">
-              <span style={{ fontFamily: "'Times New Roman', serif", fontSize: 16, color: "var(--neon-cyan)" }}>Новый заказ</span>
-              <button onClick={() => setShowForm(false)} style={{ color: "rgba(120,160,220,0.7)", fontSize: 20 }}>×</button>
-            </div>
-            <div className="grid gap-3" style={{ gridTemplateColumns: "1fr 1fr" }}>
-              {([
-                ["client", "Клиент *"], ["phone", "Телефон"],
-                ["device", "Устройство *"], ["master", "Мастер *"],
-                ["deadline", "Срок выполнения"], ["cost", "Стоимость (₽)"],
-                ["prepaid", "Предоплата (₽)"],
-              ] as [keyof typeof newOrder, string][]).map(([field, label]) => (
-                <div key={field}>
-                  <label style={{ fontSize: 10, color: "rgba(100,140,200,0.7)", display: "block", marginBottom: 4 }}>{label}</label>
-                  <input className="input-neon" value={newOrder[field]} onChange={e => setNewOrder({ ...newOrder, [field]: e.target.value })} />
-                </div>
-              ))}
-              <div style={{ gridColumn: "1 / -1" }}>
-                <label style={{ fontSize: 10, color: "rgba(100,140,200,0.7)", display: "block", marginBottom: 4 }}>Неисправность *</label>
-                <textarea className="input-neon" rows={2} style={{ resize: "none" }} value={newOrder.problem} onChange={e => setNewOrder({ ...newOrder, problem: e.target.value })} />
-              </div>
-            </div>
-            <div className="flex gap-3 mt-4 justify-end">
-              <button className="neon-btn px-4 py-2 rounded" onClick={() => setShowForm(false)} style={{ borderColor: "rgba(100,140,200,0.3)", color: "rgba(130,170,220,0.7)" }}>Отмена</button>
-              <button className="neon-btn px-4 py-2 rounded" onClick={handleAddOrder}>Создать заказ</button>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-// список сотрудников карточками
-// временно — потом сделать редактирование
-function StaffSection() {
-  return (
-    <div className="animate-fade-in">
-      <h2 className="mb-4" style={{ fontFamily: "'Times New Roman', serif", fontSize: 18, color: "var(--neon-cyan)", textShadow: "var(--neon-glow)" }}>Сотрудники</h2>
-      <div className="grid gap-4" style={{ gridTemplateColumns: "repeat(2, 1fr)" }}>
-        {DEMO_STAFF.map(staffMember => (
-          <div key={staffMember.id} className="card-dark rounded-lg p-4">
-            <div className="flex items-start justify-between mb-3">
-              <div>
-                <div style={{ fontFamily: "'Times New Roman', serif", fontSize: 14, color: "rgba(200,225,255,0.95)", marginBottom: 3 }}>{staffMember.name}</div>
-                <div style={{ fontSize: 11, color: "rgba(0,180,255,0.7)" }}>{staffMember.role}</div>
-              </div>
-              <div style={{ background: "rgba(0,100,255,0.15)", border: "1px solid rgba(0,150,255,0.3)", borderRadius: 20, padding: "2px 10px", fontSize: 11, color: "#60aaff" }}>{staffMember.id}</div>
-            </div>
-            <div className="grid gap-2" style={{ gridTemplateColumns: "1fr 1fr 1fr" }}>
-              <div style={{ gridColumn: "1 / -1" }}>
-                <div style={{ fontSize: 10, color: "rgba(100,140,200,0.6)", marginBottom: 2 }}>Телефон</div>
-                <div style={{ fontSize: 12, color: "rgba(180,215,255,0.9)" }}>{staffMember.phone}</div>
-              </div>
-              {[["Активных", String(staffMember.ordersActive)], ["Всего", String(staffMember.ordersTotal)], ["Рейтинг", `★ ${staffMember.rating}`]].map(([label, value]) => (
-                <div key={label}>
-                  <div style={{ fontSize: 10, color: "rgba(100,140,200,0.6)", marginBottom: 2 }}>{label}</div>
-                  <div style={{ fontSize: 12, color: "rgba(180,215,255,0.9)" }}>{value}</div>
-                </div>
-              ))}
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-const SHOPS = [
-  { name: "ТехноПоставка", url: "#", cat: "Дисплеи, камеры", rating: 4.8, icon: "Monitor" },
-  { name: "МобилЗапчасть", url: "#", cat: "Аккумуляторы, разъёмы", rating: 4.6, icon: "Battery" },
-  { name: "АппАкс", url: "#", cat: "Apple запчасти, клавиатуры", rating: 4.9, icon: "Apple" },
-  { name: "КомпМастер", url: "#", cat: "Расходники, инструменты", rating: 4.5, icon: "Wrench" },
-  { name: "GSM-Запчасти", url: "#", cat: "Смартфоны, планшеты", rating: 4.7, icon: "Smartphone" },
-  { name: "PartHub", url: "#", cat: "Ноутбуки, оргтехника", rating: 4.6, icon: "Laptop" },
-];
-
-// ============ ЗАПЧАСТИ ============
-function PartsSection({ showError }: { showError: (k: string) => void }) {
-  const [search, setSearch] = useState("");
-  const [showShops, setShowShops] = useState(false);
-  const filtered = DEMO_PARTS.filter(p => p.name.toLowerCase().includes(search.toLowerCase()) || p.sku.toLowerCase().includes(search.toLowerCase()));
-
-  if (showShops) return (
-    <div className="animate-fade-in">
-      <div className="flex items-center gap-3 mb-5">
-        <button onClick={() => setShowShops(false)} className="neon-btn px-3 py-1.5 rounded flex items-center gap-2" style={{ fontSize: 12 }}>
-          <Icon name="ArrowLeft" size={14} style={{ color: "var(--neon-cyan)" }} />
-          Назад
-        </button>
-        <h2 style={{ fontFamily: "'Times New Roman', serif", fontSize: 18, color: "var(--neon-cyan)", textShadow: "var(--neon-glow)" }}>
-          Интернет-магазины запчастей
-        </h2>
-      </div>
-      <div style={{ marginBottom: 20, padding: "12px 16px", background: "rgba(0,80,200,0.07)", border: "1px solid rgba(0,100,255,0.15)", borderRadius: 10 }}>
-        <div style={{ fontSize: 12, color: "rgba(130,170,230,0.7)" }}>
-          Здесь будут ссылки на проверенных поставщиков запчастей. Ссылки появятся после настройки.
-        </div>
-      </div>
-      <div className="grid gap-4" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))" }}>
-        {SHOPS.map(s => (
-          <div key={s.name} className="card-dark rounded-lg p-5" style={{ borderColor: "rgba(0,100,255,0.2)" }}>
-            <div className="flex items-start gap-4 mb-3">
-              <div style={{ width: 44, height: 44, borderRadius: 10, background: "rgba(0,100,255,0.12)", border: "1px solid rgba(0,150,255,0.2)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                <Icon name={s.icon as string} fallback="ShoppingBag" size={20} style={{ color: "var(--neon-cyan)" }} />
-              </div>
-              <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 14, color: "rgba(200,230,255,0.95)", fontFamily: "'Times New Roman', serif", marginBottom: 2 }}>{s.name}</div>
-                <div style={{ fontSize: 11, color: "rgba(100,140,200,0.7)" }}>{s.cat}</div>
-              </div>
-              <div style={{ fontSize: 11, color: "#ffb830" }}>★ {s.rating}</div>
-            </div>
-            <button
-              style={{ width: "100%", padding: "8px 0", background: "rgba(0,100,255,0.08)", border: "1px solid rgba(0,120,255,0.25)", borderRadius: 7, color: "rgba(100,150,220,0.6)", fontSize: 12, cursor: "not-allowed", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}
-              disabled
-            >
-              <Icon name="ExternalLink" size={13} style={{ color: "rgba(80,120,200,0.5)" }} />
-              Ссылка не настроена
-            </button>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-
-  return (
-    <div className="animate-fade-in">
-      <div className="flex items-center justify-between mb-4">
-        <h2 style={{ fontFamily: "'Times New Roman', serif", fontSize: 18, color: "var(--neon-cyan)", textShadow: "var(--neon-glow)" }}>Запчасти и склад</h2>
-        <div className="flex items-center gap-3">
-          <HotkeyHint keys="Alt+P" label="Поступление" />
-          <button className="neon-btn px-4 py-2 rounded flex items-center gap-2" onClick={() => setShowShops(true)}>
-            <Icon name="ShoppingCart" size={14} style={{ color: "var(--neon-cyan)" }} />
-            Заказать товары
-          </button>
-          <button className="neon-btn px-4 py-2 rounded" onClick={() => showError("LOW_STOCK")}>+ Поступление</button>
-        </div>
-      </div>
-      <input className="input-neon mb-4" style={{ maxWidth: 300 }} placeholder="Поиск по названию, артикулу..." value={search} onChange={e => setSearch(e.target.value)} />
-      <div className="card-dark rounded-lg overflow-hidden">
-        <table className="table-neon w-full">
-          <thead>
-            <tr><th>Артикул</th><th>Наименование</th><th>Категория</th><th>На складе</th><th>Мин. запас</th><th>Цена</th><th>Поставщик</th></tr>
-          </thead>
-          <tbody>
-            {filtered.map(p => (
-              <tr key={p.id} style={{ background: p.stock <= p.minStock ? "rgba(255,50,50,0.04)" : undefined }}>
-                <td style={{ color: "#60aaff", fontSize: 11 }}>{p.sku}</td>
-                <td style={{ color: p.stock === 0 ? "#ff6060" : undefined }}>{p.name}</td>
-                <td style={{ color: "rgba(130,170,230,0.7)" }}>{p.category}</td>
-                <td>
-                  <span style={{ color: p.stock === 0 ? "#ff6060" : p.stock <= p.minStock ? "#ffb830" : "#3ddc84", fontWeight: 600 }}>{p.stock} шт.</span>
-                  {p.stock <= p.minStock && <span style={{ marginLeft: 6, fontSize: 10, color: "#ff8040" }}>⚠ Мало</span>}
-                </td>
-                <td style={{ color: "rgba(130,170,230,0.7)" }}>{p.minStock} шт.</td>
-                <td style={{ color: "#3ddc84" }}>{p.price.toLocaleString("ru-RU")} ₽</td>
-                <td style={{ color: "rgba(130,170,230,0.7)" }}>{p.supplier}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  );
-}
-
-// расписание приёма и выдачи
-function ScheduleSection() {
-  const today = "28.04.2026"; // TODO: брать динамически через new Date()
-
-  // группирую записи по дате — сделал через reduce
-  const byDate = DEMO_SCHEDULE.reduce((acc, scheduleItem) => {
-    if (!acc[scheduleItem.date]) {
-      acc[scheduleItem.date] = [];
-    }
-    acc[scheduleItem.date].push(scheduleItem);
-    return acc;
-  }, {} as Record<string, ScheduleEntry[]>);
-
-  return (
-    <div className="animate-fade-in">
-      <h2 className="mb-4" style={{ fontFamily: "'Times New Roman', serif", fontSize: 18, color: "var(--neon-cyan)", textShadow: "var(--neon-glow)" }}>Расписание</h2>
-      <div className="grid gap-4" style={{ gridTemplateColumns: "repeat(3, 1fr)" }}>
-        {Object.entries(byDate).map(([date, entries]) => {
-          const isToday = date === today;
-          return (
-            <div key={date} className="card-dark rounded-lg p-4" style={{ borderColor: isToday ? "rgba(0,229,255,0.5)" : undefined, boxShadow: isToday ? "var(--neon-glow)" : undefined }}>
-              <div className="flex items-center gap-2 mb-3">
-                <span style={{ fontFamily: "'Times New Roman', serif", fontSize: 14, color: isToday ? "var(--neon-cyan)" : "rgba(160,200,255,0.85)", textShadow: isToday ? "var(--neon-glow)" : undefined }}>{date}</span>
-                {isToday && <span style={{ fontSize: 10, color: "var(--neon-cyan)", background: "rgba(0,180,255,0.1)", padding: "1px 7px", borderRadius: 10, border: "1px solid rgba(0,180,255,0.3)" }}>Сегодня</span>}
-              </div>
-              {entries.map(scheduleItem => (
-                <div key={scheduleItem.id} className="py-2" style={{ borderBottom: "1px solid rgba(0,100,255,0.1)" }}>
-                  <div className="flex items-center justify-between mb-1">
-                    <span style={{ fontSize: 13, color: "#60aaff", fontWeight: 700 }}>{scheduleItem.time}</span>
-                    <span style={{ fontSize: 10, background: scheduleItem.type === "Приём" ? "rgba(0,100,255,0.2)" : "rgba(0,180,100,0.15)", color: scheduleItem.type === "Приём" ? "#60aaff" : "#3ddc84", padding: "1px 7px", borderRadius: 3, border: `1px solid ${scheduleItem.type === "Приём" ? "rgba(0,100,255,0.4)" : "rgba(0,180,100,0.3)"}` }}>{scheduleItem.type}</span>
-                  </div>
-                  <div style={{ fontSize: 11, color: "rgba(180,215,255,0.85)", marginBottom: 2 }}>{scheduleItem.client} — {scheduleItem.device}</div>
-                  <div style={{ fontSize: 10, color: "rgba(100,140,200,0.6)" }}>{scheduleItem.master}</div>
-                </div>
-              ))}
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
-// отчёты — графики и таблицы по месяцам
-// это важно!! менеджер просил в первую очередь
-function Reports() {
-  const [view, setView] = useState<"table" | "chart">("chart");
-
-  // данные по месяцам — пока хардкод
-  const data = [
-    { month: "Январь", orders: 34, revenue: 187000, avg: 5500, done: 30 },
-    { month: "Февраль", orders: 41, revenue: 223000, avg: 5439, done: 38 },
-    { month: "Март", orders: 38, revenue: 198000, avg: 5210, done: 35 },
-    { month: "Апрель", orders: 29, revenue: 161000, avg: 5552, done: 25 },
-  ];
-  const maxRev = Math.max(...data.map(d => d.revenue));
-
-  return (
-    <div className="animate-fade-in">
-      {/* Шапка с логотипом */}
-      <div className="card-dark rounded-lg p-4 mb-4 flex items-center justify-between" style={{ borderColor: "rgba(0,180,255,0.3)" }}>
-        <div className="flex items-center gap-3">
-          <div style={{ width: 44, height: 44, background: "linear-gradient(135deg, rgba(0,100,255,0.4), rgba(0,200,255,0.3))", borderRadius: 8, border: "1px solid rgba(0,180,255,0.5)", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "var(--neon-glow)" }}>
-            <Icon name="Wrench" size={22} style={{ color: "var(--neon-cyan)" }} />
-          </div>
-          <div>
-            <div className="logo-header" style={{ fontSize: 16 }}>РемМастер</div>
-            <div style={{ fontSize: 10, color: "rgba(100,140,200,0.7)" }}>Система управления ремонтной мастерской</div>
-          </div>
-        </div>
-        <div style={{ textAlign: "right" }}>
-          <div style={{ fontSize: 11, color: "rgba(100,140,200,0.7)" }}>Отчёт сформирован</div>
-          <div style={{ fontSize: 12, color: "rgba(180,215,255,0.8)" }}>28 апреля 2026 г.</div>
-        </div>
-      </div>
-
-      <div className="flex items-center justify-between mb-4">
-        <h2 style={{ fontFamily: "'Times New Roman', serif", fontSize: 18, color: "var(--neon-cyan)", textShadow: "var(--neon-glow)" }}>Аналитика и отчёты</h2>
-        <div className="flex items-center gap-3">
-          <HotkeyHint keys="Alt+T" label="Таблица" />
-          <HotkeyHint keys="Alt+G" label="График" />
-          <div className="flex" style={{ border: "1px solid rgba(0,120,255,0.3)", borderRadius: 5, overflow: "hidden" }}>
-            <button onClick={() => setView("chart")} style={{ fontFamily: "'Times New Roman', serif", fontSize: 12, padding: "5px 16px", color: view === "chart" ? "#fff" : "rgba(130,170,230,0.7)", background: view === "chart" ? "rgba(0,130,255,0.3)" : "transparent", borderRight: "1px solid rgba(0,120,255,0.3)" }}>График</button>
-            <button onClick={() => setView("table")} style={{ fontFamily: "'Times New Roman', serif", fontSize: 12, padding: "5px 16px", color: view === "table" ? "#fff" : "rgba(130,170,230,0.7)", background: view === "table" ? "rgba(0,130,255,0.3)" : "transparent" }}>Таблица</button>
-          </div>
-        </div>
-      </div>
-
-      {view === "chart" ? (
-        <div className="grid gap-4" style={{ gridTemplateColumns: "1fr 1fr" }}>
-          <div className="card-dark rounded-lg p-4">
-            <h3 style={{ fontFamily: "'Times New Roman', serif", fontSize: 13, color: "var(--neon-cyan)", marginBottom: 16 }}>Выручка по месяцам (₽)</h3>
-            <div className="flex items-end gap-4" style={{ height: 160 }}>
-              {data.map(d => (
-                <div key={d.month} className="flex flex-col items-center flex-1 gap-1">
-                  <span style={{ fontSize: 10, color: "#60aaff" }}>{(d.revenue / 1000).toFixed(0)}к</span>
-                  <div className="chart-bar w-full rounded-sm" style={{ height: `${(d.revenue / maxRev) * 130}px` }} />
-                  <span style={{ fontSize: 10, color: "rgba(130,170,230,0.7)", textAlign: "center" }}>{d.month.slice(0, 3)}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-          <div className="card-dark rounded-lg p-4">
-            <h3 style={{ fontFamily: "'Times New Roman', serif", fontSize: 13, color: "var(--neon-cyan)", marginBottom: 16 }}>Кол-во заказов</h3>
-            <div className="flex items-end gap-4" style={{ height: 160 }}>
-              {data.map(d => (
-                <div key={d.month} className="flex flex-col items-center flex-1 gap-1">
-                  <span style={{ fontSize: 10, color: "#3ddc84" }}>{d.orders}</span>
-                  <div className="chart-bar w-full rounded-sm" style={{ height: `${(d.orders / 41) * 130}px`, background: "linear-gradient(to top, rgba(0,180,100,0.5), rgba(60,220,130,0.7))", borderTopColor: "#3ddc84" }} />
-                  <span style={{ fontSize: 10, color: "rgba(130,170,230,0.7)", textAlign: "center" }}>{d.month.slice(0, 3)}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      ) : (
-        <div className="card-dark rounded-lg overflow-hidden">
-          <table className="table-neon w-full">
-            <thead>
-              <tr><th>Месяц</th><th>Заказов</th><th>Выполнено</th><th>Выручка</th><th>Средний чек</th><th>Конверсия</th></tr>
-            </thead>
-            <tbody>
-              {data.map(dataItem => {
-                const conversionPercent = Math.round((dataItem.done / dataItem.orders) * 100);
-                return (
-                  <tr key={dataItem.month}>
-                    <td style={{ fontFamily: "'Times New Roman', serif", color: "rgba(180,215,255,0.9)" }}>{dataItem.month}</td>
-                    <td>{dataItem.orders}</td>
-                    <td style={{ color: "#3ddc84" }}>{dataItem.done}</td>
-                    <td style={{ color: "#60aaff", fontWeight: 600 }}>{dataItem.revenue.toLocaleString("ru-RU")} ₽</td>
-                    <td>{dataItem.avg.toLocaleString("ru-RU")} ₽</td>
-                    <td style={{ color: "#ffb830" }}>{conversionPercent}%</td>
-                  </tr>
-                );
-              })}
-              <tr style={{ background: "rgba(0,100,255,0.07)", fontWeight: 700 }}>
-                <td style={{ color: "var(--neon-cyan)" }}>Итого</td>
-                <td style={{ color: "var(--neon-cyan)" }}>{data.reduce((s, d) => s + d.orders, 0)}</td>
-                <td style={{ color: "#3ddc84" }}>{data.reduce((s, d) => s + d.done, 0)}</td>
-                <td style={{ color: "#60aaff" }}>{data.reduce((s, d) => s + d.revenue, 0).toLocaleString("ru-RU")} ₽</td>
-                <td>{Math.round(data.reduce((s, d) => s + d.avg, 0) / data.length).toLocaleString("ru-RU")} ₽</td>
-                <td style={{ color: "#ffb830" }}>—</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      )}
-    </div>
-  );
-}
-
-// личный кабинет клиента — отслеживание заказа
-function Cabinet() {
-  const [trackId, setTrackId] = useState("");
-  const [trackResult, setTrackResult] = useState<Order | null | "not_found">(null);
-  // история заказов конкретного клиента (пока жёстко вшит Иванов — потом сделать динамически)
-  const clientOrders = DEMO_ORDERS.filter(orderItem => orderItem.client === "Иванов А.П.");
-
-  const handleTrack = () => {
-    const trimmedId = trackId.trim();
-    if (!trimmedId) return;
-    console.log("ищу заказ по номеру:", trimmedId);
-    const foundOrder = DEMO_ORDERS.find(orderItem => orderItem.id.toLowerCase() === trimmedId.toLowerCase());
-    // если нашли — показываем, если нет — строку "not_found"
-    setTrackResult(foundOrder || "not_found");
-  };
-
-  return (
-    <div className="animate-fade-in">
-      <h2 className="mb-4" style={{ fontFamily: "'Times New Roman', serif", fontSize: 18, color: "var(--neon-cyan)", textShadow: "var(--neon-glow)" }}>Личный кабинет</h2>
-      <div className="grid gap-4 mb-4" style={{ gridTemplateColumns: "1fr 1fr" }}>
-        <div className="card-dark rounded-lg p-4">
-          <h3 style={{ fontFamily: "'Times New Roman', serif", fontSize: 14, color: "var(--neon-cyan)", marginBottom: 12 }}>Отследить заказ</h3>
-          <div className="flex gap-2 mb-4">
-            <input className="input-neon flex-1" placeholder="Номер заказа (напр. ЗК-001)" value={trackId} onChange={e => setTrackId(e.target.value)} onKeyDown={e => e.key === "Enter" && handleTrack()} />
-            <button className="neon-btn px-4 py-2 rounded" onClick={handleTrack}>Найти</button>
-          </div>
-          {trackResult === "not_found" && (
-            <div style={{ fontSize: 12, color: "#ff8080", padding: "8px 12px", background: "rgba(255,50,50,0.08)", border: "1px solid rgba(255,50,50,0.25)", borderRadius: 5 }}>
-              Заказ не найден. Проверьте номер и повторите поиск.
-            </div>
-          )}
-          {trackResult && trackResult !== "not_found" && (
-            <div style={{ padding: "10px 14px", background: "rgba(0,100,255,0.08)", border: "1px solid rgba(0,150,255,0.25)", borderRadius: 5 }}>
-              <div className="flex items-center justify-between mb-2">
-                <span style={{ fontSize: 13, color: "#60aaff", fontWeight: 700 }}>{trackResult.id}</span>
-                <span className={`status-badge ${STATUS_CLASS[trackResult.status]}`}>{STATUS_LABELS[trackResult.status]}</span>
-              </div>
-              <div style={{ fontSize: 11, color: "rgba(180,215,255,0.85)" }}>{trackResult.device}</div>
-              <div style={{ fontSize: 11, color: "rgba(130,170,230,0.6)", marginTop: 4 }}>Срок: {trackResult.deadline} · Мастер: {trackResult.master}</div>
-            </div>
-          )}
-        </div>
-
-        <div className="card-dark rounded-lg p-4">
-          <h3 style={{ fontFamily: "'Times New Roman', serif", fontSize: 14, color: "var(--neon-cyan)", marginBottom: 12 }}>
-            История обращений <span style={{ fontSize: 11, color: "rgba(100,140,200,0.6)" }}>— Иванов А.П.</span>
-          </h3>
-          {clientOrders.map(o => (
-            <div key={o.id} className="py-2" style={{ borderBottom: "1px solid rgba(0,100,255,0.1)" }}>
-              <div className="flex items-center justify-between mb-1">
-                <span style={{ fontSize: 12, color: "#60aaff" }}>{o.id}</span>
-                <span className={`status-badge ${STATUS_CLASS[o.status]}`}>{STATUS_LABELS[o.status]}</span>
-              </div>
-              <div style={{ fontSize: 11, color: "rgba(180,215,255,0.85)" }}>{o.device} — {o.problem}</div>
-              <div style={{ fontSize: 10, color: "rgba(100,140,200,0.6)", marginTop: 2 }}>{o.created} · {o.cost.toLocaleString("ru-RU")} ₽</div>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      <div className="card-dark rounded-lg p-4">
-        <h3 style={{ fontFamily: "'Times New Roman', serif", fontSize: 14, color: "var(--neon-cyan)", marginBottom: 12 }}>История поломок и ремонтов</h3>
-        <div className="card-dark rounded-lg overflow-hidden" style={{ border: "none" }}>
-          <table className="table-neon w-full">
-            <thead>
-              <tr><th>Заказ</th><th>Клиент</th><th>Устройство</th><th>Неисправность</th><th>Дата</th><th>Итог</th></tr>
-            </thead>
-            <tbody>
-              {DEMO_ORDERS.map(o => (
-                <tr key={o.id}>
-                  <td style={{ color: "#60aaff" }}>{o.id}</td>
-                  <td>{o.client}</td>
-                  <td>{o.device}</td>
-                  <td>{o.problem}</td>
-                  <td>{o.created}</td>
-                  <td><span className={`status-badge ${STATUS_CLASS[o.status]}`}>{STATUS_LABELS[o.status]}</span></td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// главный компонент приложения
-// здесь навигация и общий layout
-
-// список пунктов меню
-const NAV: { key: Section; label: string; icon: string; hotkey: string }[] = [
-  { key: "dashboard", label: "Главная", icon: "LayoutDashboard", hotkey: "Alt+1" },
-  { key: "orders", label: "Заказы", icon: "ClipboardList", hotkey: "Alt+2" },
-  { key: "staff", label: "Сотрудники", icon: "Users", hotkey: "Alt+3" },
-  { key: "parts", label: "Запчасти", icon: "Package", hotkey: "Alt+4" },
-  { key: "schedule", label: "Расписание", icon: "CalendarDays", hotkey: "Alt+5" },
-  { key: "reports", label: "Отчёты", icon: "BarChart2", hotkey: "Alt+6" },
-  { key: "cabinet", label: "Личный кабинет", icon: "User", hotkey: "Alt+7" },
+// шаги работы
+const steps = [
+  { number: "01", title: "Диагностика", desc: "Бесплатно оцениваем поломку и называем точную стоимость ремонта" },
+  { number: "02", title: "Согласование", desc: "Согласовываем стоимость и сроки. Ремонт только с вашего согласия" },
+  { number: "03", title: "Ремонт", desc: "Выполняем ремонт в присутствии клиента или звоним когда готово" },
+  { number: "04", title: "Выдача", desc: "Проверяем работу при вас и выдаём гарантийный талон" },
 ];
 
 export default function App() {
-  const [section, setSection] = useState<Section>("dashboard");
-  const [orders, setOrders] = useState<Order[]>(DEMO_ORDERS);
-  const [staff, setStaff] = useState<Staff[]>(DEMO_STAFF);
-  const [error, setError] = useState<ErrorNotification | null>(null);
-  const [currentUser, setCurrentUser] = useState<Staff>(DEMO_STAFF[3]);
-  const [userMenuOpen, setUserMenuOpen] = useState(false);
-  const [showNewUserForm, setShowNewUserForm] = useState(false);
-  const [newUserData, setNewUserData] = useState({ name: "", role: "Мастер", phone: "" });
+  const [formData, setFormData] = useState({ name: "", phone: "", device: "", problem: "" });
+  const [formSent, setFormSent] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
-  const showError = useCallback((key: string) => {
-    setError(ERROR_MESSAGES[key] || ERROR_MESSAGES.SAVE_ERROR);
-  }, []);
+  const handleSubmit = (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!formData.name || !formData.phone) return;
+    setFormSent(true);
+  };
 
-  // горячие клавиши Alt+1...7 для переключения разделов
-  // не трогать, работает
-  useEffect(() => {
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (!event.altKey) return;
-      const keyToSectionMap: Record<string, Section> = {
-        "1": "dashboard",
-        "2": "orders",
-        "3": "staff",
-        "4": "parts",
-        "5": "schedule",
-        "6": "reports",
-        "7": "cabinet",
-      };
-      const targetSection = keyToSectionMap[event.key];
-      if (targetSection) {
-        event.preventDefault();
-        setSection(targetSection);
-      }
-    };
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, []);
+  const scrollTo = (id: string) => {
+    document.getElementById(id)?.scrollIntoView({ behavior: "smooth" });
+    setMobileMenuOpen(false);
+  };
 
   return (
-    <div style={{ minHeight: "100vh", display: "flex", flexDirection: "column", background: "hsl(220, 40%, 4%)" }}>
-      <header style={{ borderBottom: "1px solid rgba(0,120,255,0.2)", background: "rgba(2,8,22,0.98)", backdropFilter: "blur(10px)", position: "sticky", top: 0, zIndex: 30 }}>
-        <div style={{ maxWidth: 1440, margin: "0 auto", padding: "0 24px", height: 56, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-          <div className="flex items-center gap-3">
-            <div style={{ width: 36, height: 36, background: "linear-gradient(135deg, rgba(0,100,255,0.4), rgba(0,200,255,0.3))", borderRadius: 7, border: "1px solid rgba(0,180,255,0.5)", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "var(--neon-glow)" }}>
-              <Icon name="Wrench" size={18} style={{ color: "var(--neon-cyan)" }} />
+    <div style={{ fontFamily: "'Inter', sans-serif", color: "#1a1a2e", background: "#ffffff" }}>
+
+      {/* ========== ШАПКА ========== */}
+      <header style={{ position: "sticky", top: 0, zIndex: 100, background: "#fff", boxShadow: "0 2px 20px rgba(0,0,0,0.08)" }}>
+        <div style={{ maxWidth: 1200, margin: "0 auto", padding: "0 20px", height: 70, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          {/* Логотип */}
+          <div className="flex items-center gap-3" style={{ cursor: "pointer" }} onClick={() => scrollTo("hero")}>
+            <div style={{ width: 42, height: 42, borderRadius: 10, background: "linear-gradient(135deg, #e8440a, #ff6b35)", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 4px 15px rgba(232,68,10,0.35)" }}>
+              <Icon name="Wrench" size={22} style={{ color: "#fff" }} />
             </div>
             <div>
-              <div className="logo-header" style={{ fontSize: 17 }}>РемМастер</div>
-              <div style={{ fontSize: 9, color: "rgba(80,120,180,0.7)", letterSpacing: "0.1em" }}>СИСТЕМА УПРАВЛЕНИЯ МАСТЕРСКОЙ</div>
+              <div style={{ fontSize: 20, fontWeight: 800, color: "#1a1a2e", letterSpacing: "-0.3px" }}>
+                Techno<span style={{ color: "#e8440a" }}>Expert</span>
+              </div>
+              <div style={{ fontSize: 10, color: "#888", letterSpacing: "0.05em" }}>СЕРВИСНЫЙ ЦЕНТР • НАХОДКА</div>
             </div>
           </div>
-          <div className="flex items-center gap-3" style={{ position: "relative" }}>
-            <span style={{ fontSize: 10, color: "rgba(80,120,180,0.6)" }}>28 апр. 2026</span>
-            <div style={{ width: 1, height: 20, background: "rgba(0,100,255,0.2)" }} />
-            <button
-              onClick={() => setUserMenuOpen(v => !v)}
-              className="flex items-center gap-2"
-              style={{ cursor: "pointer", background: "none", border: "none", padding: "4px 8px", borderRadius: 6, transition: "background 0.2s" }}
-              onMouseEnter={e => (e.currentTarget.style.background = "rgba(0,100,255,0.12)")}
-              onMouseLeave={e => (e.currentTarget.style.background = "none")}
-            >
-              <div style={{ width: 28, height: 28, borderRadius: "50%", background: currentUser.ordersActive > 0 ? "rgba(255,184,48,0.2)" : "rgba(0,100,255,0.2)", border: `1px solid ${currentUser.ordersActive > 0 ? "rgba(255,184,48,0.4)" : "rgba(0,150,255,0.3)"}`, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                <Icon name="User" size={14} style={{ color: currentUser.ordersActive > 0 ? "#ffb830" : "#60aaff" }} />
-              </div>
-              <div style={{ textAlign: "left" }}>
-                <div style={{ fontSize: 11, color: "rgba(180,210,255,0.9)", lineHeight: 1.2 }}>{currentUser.name.split(" ")[0]} {currentUser.name.split(" ")[1]?.[0]}.</div>
-                <div style={{ fontSize: 9, color: "rgba(100,140,200,0.6)" }}>{currentUser.role}</div>
-              </div>
-              <Icon name="ChevronDown" size={12} style={{ color: "rgba(80,120,180,0.5)", transform: userMenuOpen ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.2s" }} />
-            </button>
 
-            {userMenuOpen && (
-              <div
-                style={{ position: "absolute", top: "calc(100% + 8px)", right: 0, minWidth: 240, background: "rgba(4,12,30,0.98)", border: "1px solid rgba(0,100,255,0.25)", borderRadius: 10, boxShadow: "0 8px 32px rgba(0,0,0,0.6), 0 0 20px rgba(0,80,200,0.15)", overflow: "hidden", zIndex: 100 }}
-                onMouseLeave={() => setUserMenuOpen(false)}
+          {/* Навигация */}
+          <nav className="hidden md:flex items-center gap-6">
+            {[["services", "Услуги"], ["prices", "Цены"], ["how", "Как мы работаем"], ["reviews", "Отзывы"], ["contacts", "Контакты"]].map(([id, label]) => (
+              <button key={id} onClick={() => scrollTo(id)} style={{ background: "none", border: "none", fontSize: 14, color: "#555", cursor: "pointer", fontWeight: 500, transition: "color 0.2s" }}
+                onMouseEnter={e => (e.currentTarget.style.color = "#e8440a")}
+                onMouseLeave={e => (e.currentTarget.style.color = "#555")}
               >
-                <div style={{ padding: "8px 12px 6px", borderBottom: "1px solid rgba(0,80,200,0.15)" }}>
-                  <div style={{ fontSize: 9, color: "rgba(80,120,180,0.6)", letterSpacing: "0.08em", marginBottom: 4 }}>СМЕНИТЬ ПОЛЬЗОВАТЕЛЯ</div>
-                </div>
-                {staff.map(s => (
-                  <button
-                    key={s.id}
-                    onClick={() => { setCurrentUser(s); setUserMenuOpen(false); }}
-                    style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", padding: "9px 12px", background: currentUser.id === s.id ? "rgba(0,100,255,0.12)" : "transparent", border: "none", cursor: "pointer", transition: "background 0.15s", borderLeft: currentUser.id === s.id ? "2px solid var(--neon-cyan)" : "2px solid transparent" }}
-                    onMouseEnter={e => { if (currentUser.id !== s.id) (e.currentTarget as HTMLElement).style.background = "rgba(0,80,200,0.1)"; }}
-                    onMouseLeave={e => { if (currentUser.id !== s.id) (e.currentTarget as HTMLElement).style.background = "transparent"; }}
-                  >
-                    <div style={{ width: 32, height: 32, borderRadius: "50%", background: s.ordersActive > 0 ? "rgba(255,184,48,0.15)" : "rgba(61,220,132,0.12)", border: `1px solid ${s.ordersActive > 0 ? "rgba(255,184,48,0.35)" : "rgba(61,220,132,0.3)"}`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                      <Icon name="User" size={14} style={{ color: s.ordersActive > 0 ? "#ffb830" : "#3ddc84" }} />
-                    </div>
-                    <div style={{ flex: 1, textAlign: "left" }}>
-                      <div style={{ fontSize: 12, color: currentUser.id === s.id ? "rgba(200,230,255,0.95)" : "rgba(150,190,240,0.85)", fontFamily: "'Times New Roman', serif" }}>{s.name}</div>
-                      <div style={{ fontSize: 10, color: "rgba(90,130,190,0.6)", marginTop: 1 }}>{s.role}</div>
-                    </div>
-                    <div style={{ fontSize: 10, color: s.ordersActive > 0 ? "#ffb830" : "#3ddc84", background: s.ordersActive > 0 ? "rgba(255,184,48,0.1)" : "rgba(61,220,132,0.1)", border: `1px solid ${s.ordersActive > 0 ? "rgba(255,184,48,0.25)" : "rgba(61,220,132,0.25)"}`, borderRadius: 10, padding: "1px 8px" }}>
-                      {s.ordersActive > 0 ? `${s.ordersActive} зак.` : "Свободен"}
-                    </div>
-                  </button>
-                ))}
-                <div style={{ borderTop: "1px solid rgba(0,80,200,0.15)", padding: "6px 12px 8px" }}>
-                  <button
-                    onClick={() => { setUserMenuOpen(false); setShowNewUserForm(true); }}
-                    style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", padding: "7px 10px", background: "rgba(0,100,255,0.08)", border: "1px dashed rgba(0,120,255,0.3)", borderRadius: 8, cursor: "pointer", transition: "all 0.2s" }}
-                    onMouseEnter={e => (e.currentTarget.style.background = "rgba(0,100,255,0.15)")}
-                    onMouseLeave={e => (e.currentTarget.style.background = "rgba(0,100,255,0.08)")}
-                  >
-                    <Icon name="UserPlus" size={14} style={{ color: "var(--neon-cyan)" }} />
-                    <span style={{ fontSize: 12, color: "var(--neon-cyan)", fontFamily: "'Times New Roman', serif" }}>Новый пользователь</span>
-                  </button>
-                </div>
-              </div>
-            )}
+                {label}
+              </button>
+            ))}
+          </nav>
+
+          {/* Телефон в шапке */}
+          <div className="hidden md:flex items-center gap-4">
+            <a href="tel:+74236001234" style={{ textDecoration: "none" }}>
+              <div style={{ fontSize: 18, fontWeight: 700, color: "#1a1a2e" }}>+7 (4236) 00-12-34</div>
+              <div style={{ fontSize: 11, color: "#888", textAlign: "right" }}>Пн–Вс 9:00–21:00</div>
+            </a>
+            <button
+              onClick={() => scrollTo("contacts")}
+              style={{ background: "#e8440a", color: "#fff", border: "none", borderRadius: 8, padding: "10px 20px", fontSize: 14, fontWeight: 600, cursor: "pointer", transition: "all 0.2s" }}
+              onMouseEnter={e => (e.currentTarget.style.background = "#c73709")}
+              onMouseLeave={e => (e.currentTarget.style.background = "#e8440a")}
+            >
+              Оставить заявку
+            </button>
           </div>
+
+          {/* Мобильное меню */}
+          <button className="md:hidden" onClick={() => setMobileMenuOpen(v => !v)} style={{ background: "none", border: "none", cursor: "pointer", padding: 4 }}>
+            <Icon name={mobileMenuOpen ? "X" : "Menu"} size={26} style={{ color: "#1a1a2e" }} />
+          </button>
         </div>
+
+        {/* Мобильное меню раскрытое */}
+        {mobileMenuOpen && (
+          <div style={{ background: "#fff", borderTop: "1px solid #eee", padding: "16px 20px 20px" }}>
+            {[["services", "Услуги"], ["prices", "Цены"], ["how", "Как мы работаем"], ["reviews", "Отзывы"], ["contacts", "Контакты"]].map(([id, label]) => (
+              <button key={id} onClick={() => scrollTo(id)} style={{ display: "block", width: "100%", textAlign: "left", background: "none", border: "none", fontSize: 16, color: "#333", cursor: "pointer", padding: "10px 0", borderBottom: "1px solid #f0f0f0" }}>
+                {label}
+              </button>
+            ))}
+            <a href="tel:+74236001234" style={{ display: "block", fontSize: 20, fontWeight: 700, color: "#e8440a", marginTop: 12, textDecoration: "none" }}>
+              +7 (4236) 00-12-34
+            </a>
+          </div>
+        )}
       </header>
 
-      <div style={{ display: "flex", flex: 1 }}>
-        <aside style={{ width: 210, background: "rgba(2,7,20,0.97)", borderRight: "1px solid rgba(0,80,200,0.15)", display: "flex", flexDirection: "column", padding: "20px 0", position: "sticky", top: 56, height: "calc(100vh - 56px)", overflowY: "auto" }}>
-          {NAV.map(navItem => {
-            const isActive = section === navItem.key;
-            return (
-              <button
-                key={navItem.key}
-                onClick={() => setSection(navItem.key)}
-                title={navItem.hotkey}
-                style={{
-                  display: "flex", alignItems: "center", gap: 10,
-                  padding: "10px 20px",
-                  fontFamily: "'Times New Roman', serif",
-                  fontSize: 13,
-                  color: isActive ? "#fff" : "rgba(120,160,220,0.75)",
-                  background: isActive ? "linear-gradient(90deg, rgba(0,130,255,0.2), transparent)" : "transparent",
-                  borderLeft: isActive ? "2px solid var(--neon-cyan)" : "2px solid transparent",
-                  textAlign: "left", width: "100%", cursor: "pointer",
-                  transition: "all 0.2s",
-                }}
-              >
-                <Icon name={navItem.icon as string} size={15} style={{ color: isActive ? "var(--neon-cyan)" : "rgba(80,120,200,0.6)", flexShrink: 0 }} />
-                {navItem.label}
-              </button>
-            );
-          })}
+      {/* ========== ГЕРОЙ ========== */}
+      <section id="hero" style={{ position: "relative", overflow: "hidden", minHeight: 600, display: "flex", alignItems: "center" }}>
+        {/* Фоновое изображение */}
+        <div style={{ position: "absolute", inset: 0, backgroundImage: `url(${HERO_IMAGE})`, backgroundSize: "cover", backgroundPosition: "center" }} />
+        <div style={{ position: "absolute", inset: 0, background: "linear-gradient(90deg, rgba(10,10,30,0.88) 0%, rgba(10,10,30,0.6) 60%, rgba(10,10,30,0.2) 100%)" }} />
 
-          <div style={{ marginTop: "auto", padding: "16px 20px 4px", borderTop: "1px solid rgba(0,80,200,0.1)" }}>
-            <div style={{ fontSize: 10, color: "rgba(60,100,160,0.6)", marginBottom: 6 }}>Горячие клавиши</div>
-            {NAV.map(navItem => (
-              <div key={navItem.key} className="flex items-center justify-between mb-1">
-                <span style={{ fontSize: 10, color: "rgba(80,120,180,0.55)" }}>{navItem.label}</span>
-                <span className="kbd-hint">{navItem.hotkey}</span>
+        <div style={{ position: "relative", maxWidth: 1200, margin: "0 auto", padding: "80px 20px", width: "100%" }}>
+          <div style={{ maxWidth: 620 }}>
+            <div style={{ display: "inline-flex", alignItems: "center", gap: 8, background: "rgba(232,68,10,0.2)", border: "1px solid rgba(232,68,10,0.5)", borderRadius: 20, padding: "6px 16px", marginBottom: 24 }}>
+              <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#e8440a", animation: "pulse 1.5s infinite" }} />
+              <span style={{ fontSize: 13, color: "#ff9970", fontWeight: 500 }}>Принимаем заявки сейчас</span>
+            </div>
+
+            <h1 style={{ fontSize: 46, fontWeight: 900, color: "#fff", lineHeight: 1.15, marginBottom: 20, letterSpacing: "-0.5px" }}>
+              Ремонт телефонов,<br />
+              <span style={{ color: "#ff6b35" }}>ноутбуков и ПК</span><br />
+              в Находке
+            </h1>
+
+            <p style={{ fontSize: 18, color: "rgba(255,255,255,0.8)", marginBottom: 36, lineHeight: 1.6 }}>
+              Быстро, качественно, с гарантией до 90 дней.<br />
+              Бесплатная диагностика. Ремонт при клиенте.
+            </p>
+
+            <div className="flex flex-wrap gap-4 mb-10">
+              <button
+                onClick={() => scrollTo("contacts")}
+                style={{ background: "#e8440a", color: "#fff", border: "none", borderRadius: 10, padding: "16px 32px", fontSize: 16, fontWeight: 700, cursor: "pointer", boxShadow: "0 8px 25px rgba(232,68,10,0.4)", transition: "all 0.2s" }}
+                onMouseEnter={e => { e.currentTarget.style.background = "#c73709"; e.currentTarget.style.transform = "translateY(-2px)"; }}
+                onMouseLeave={e => { e.currentTarget.style.background = "#e8440a"; e.currentTarget.style.transform = "translateY(0)"; }}
+              >
+                Оставить заявку
+              </button>
+              <a href="tel:+74236001234" style={{ textDecoration: "none" }}>
+                <button
+                  style={{ background: "rgba(255,255,255,0.12)", color: "#fff", border: "2px solid rgba(255,255,255,0.4)", borderRadius: 10, padding: "14px 32px", fontSize: 16, fontWeight: 600, cursor: "pointer", backdropFilter: "blur(8px)", transition: "all 0.2s" }}
+                  onMouseEnter={e => (e.currentTarget.style.background = "rgba(255,255,255,0.2)")}
+                  onMouseLeave={e => (e.currentTarget.style.background = "rgba(255,255,255,0.12)")}
+                >
+                  📞 Позвонить
+                </button>
+              </a>
+            </div>
+
+            {/* Цифры */}
+            <div className="flex flex-wrap gap-8">
+              {[["1000+", "Довольных клиентов"], ["90", "Дней гарантии"], ["30 мин", "Срочный ремонт"], ["0 ₽", "Диагностика"]].map(([num, label]) => (
+                <div key={label}>
+                  <div style={{ fontSize: 28, fontWeight: 800, color: "#ff6b35" }}>{num}</div>
+                  <div style={{ fontSize: 12, color: "rgba(255,255,255,0.6)" }}>{label}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ========== УСЛУГИ ========== */}
+      <section id="services" style={{ padding: "80px 20px", background: "#f8f9fb" }}>
+        <div style={{ maxWidth: 1200, margin: "0 auto" }}>
+          <div style={{ textAlign: "center", marginBottom: 56 }}>
+            <div style={{ fontSize: 13, fontWeight: 600, color: "#e8440a", letterSpacing: "0.1em", marginBottom: 10, textTransform: "uppercase" }}>Что мы ремонтируем</div>
+            <h2 style={{ fontSize: 38, fontWeight: 800, color: "#1a1a2e", marginBottom: 14, letterSpacing: "-0.3px" }}>Наши услуги</h2>
+            <p style={{ fontSize: 17, color: "#666", maxWidth: 540, margin: "0 auto", lineHeight: 1.6 }}>
+              Профессиональный ремонт всех видов техники. Работаем с любыми брендами и моделями.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {services.map(service => (
+              <div
+                key={service.id}
+                style={{ background: "#fff", borderRadius: 16, padding: 28, boxShadow: "0 4px 20px rgba(0,0,0,0.06)", border: "1px solid #eee", transition: "all 0.3s", cursor: "default" }}
+                onMouseEnter={e => { (e.currentTarget as HTMLElement).style.boxShadow = "0 12px 40px rgba(232,68,10,0.12)"; (e.currentTarget as HTMLElement).style.borderColor = "#e8440a33"; (e.currentTarget as HTMLElement).style.transform = "translateY(-4px)"; }}
+                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.boxShadow = "0 4px 20px rgba(0,0,0,0.06)"; (e.currentTarget as HTMLElement).style.borderColor = "#eee"; (e.currentTarget as HTMLElement).style.transform = "translateY(0)"; }}
+              >
+                <div style={{ width: 56, height: 56, borderRadius: 14, background: "linear-gradient(135deg, #fff4f0, #ffe0d4)", display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 18 }}>
+                  <Icon name={service.icon as string} size={26} style={{ color: "#e8440a" }} />
+                </div>
+                <h3 style={{ fontSize: 19, fontWeight: 700, color: "#1a1a2e", marginBottom: 10 }}>{service.title}</h3>
+                <p style={{ fontSize: 14, color: "#666", lineHeight: 1.65, marginBottom: 18 }}>{service.description}</p>
+                <div className="flex items-center justify-between">
+                  <span style={{ fontSize: 16, fontWeight: 700, color: "#e8440a" }}>{service.price}</span>
+                  <span style={{ fontSize: 12, color: "#999", background: "#f5f5f5", padding: "4px 10px", borderRadius: 20 }}>⏱ {service.time}</span>
+                </div>
               </div>
             ))}
           </div>
-        </aside>
+        </div>
+      </section>
 
-        <main style={{ flex: 1, padding: "24px 28px", overflowX: "hidden" }}>
-          {section === "dashboard" && <Dashboard orders={orders} setOrders={setOrders} staff={staff} setStaff={setStaff} />}
-          {section === "orders" && <Orders orders={orders} setOrders={setOrders} showError={showError} />}
-          {section === "staff" && <StaffSection />}
-          {section === "parts" && <PartsSection showError={showError} />}
-          {section === "schedule" && <ScheduleSection />}
-          {section === "reports" && <Reports />}
-          {section === "cabinet" && <Cabinet />}
-        </main>
-      </div>
+      {/* ========== КАК МЫ РАБОТАЕМ ========== */}
+      <section id="how" style={{ padding: "80px 20px", background: "#fff" }}>
+        <div style={{ maxWidth: 1200, margin: "0 auto" }}>
+          <div style={{ textAlign: "center", marginBottom: 56 }}>
+            <div style={{ fontSize: 13, fontWeight: 600, color: "#e8440a", letterSpacing: "0.1em", marginBottom: 10, textTransform: "uppercase" }}>Просто и прозрачно</div>
+            <h2 style={{ fontSize: 38, fontWeight: 800, color: "#1a1a2e", marginBottom: 14, letterSpacing: "-0.3px" }}>Как мы работаем</h2>
+          </div>
 
-      {error && <ErrorToast err={error} onClose={() => setError(null)} />}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            {steps.map((step, index) => (
+              <div key={step.number} style={{ position: "relative" }}>
+                <div style={{ background: "#f8f9fb", borderRadius: 16, padding: 28, height: "100%", border: "1px solid #eee" }}>
+                  <div style={{ fontSize: 48, fontWeight: 900, color: "#ffe0d4", lineHeight: 1, marginBottom: 16 }}>{step.number}</div>
+                  <h3 style={{ fontSize: 18, fontWeight: 700, color: "#1a1a2e", marginBottom: 10 }}>{step.title}</h3>
+                  <p style={{ fontSize: 14, color: "#666", lineHeight: 1.6 }}>{step.desc}</p>
+                </div>
+                {index < steps.length - 1 && (
+                  <div className="hidden lg:block" style={{ position: "absolute", top: "50%", right: -20, transform: "translateY(-50%)", zIndex: 10 }}>
+                    <Icon name="ChevronRight" size={24} style={{ color: "#e8440a" }} />
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
 
-      {showNewUserForm && (
-        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.75)", zIndex: 200, display: "flex", alignItems: "center", justifyContent: "center" }} onClick={() => setShowNewUserForm(false)}>
-          <div style={{ background: "rgba(4,12,32,0.98)", border: "1px solid rgba(0,120,255,0.3)", borderRadius: 14, padding: 28, minWidth: 360, boxShadow: "0 16px 60px rgba(0,0,0,0.7), 0 0 30px rgba(0,80,200,0.15)" }} onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between mb-5">
-              <h3 style={{ fontFamily: "'Times New Roman', serif", fontSize: 16, color: "var(--neon-cyan)", textShadow: "var(--neon-glow)" }}>Новый пользователь</h3>
-              <button onClick={() => setShowNewUserForm(false)} style={{ background: "none", border: "none", cursor: "pointer" }}>
-                <Icon name="X" size={16} style={{ color: "rgba(100,140,200,0.6)" }} />
-              </button>
-            </div>
-            <div className="flex flex-col gap-3">
-              <div>
-                <div style={{ fontSize: 11, color: "rgba(100,140,200,0.7)", marginBottom: 5 }}>ФИО</div>
-                <input className="input-neon w-full" placeholder="Фамилия Имя Отчество" value={newUserData.name} onChange={e => setNewUserData(d => ({ ...d, name: e.target.value }))} />
+          {/* Фото мастера за работой */}
+          <div style={{ marginTop: 60, borderRadius: 20, overflow: "hidden", position: "relative", height: 340 }}>
+            <img src={REPAIR_IMAGE} alt="Мастер за ремонтом" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+            <div style={{ position: "absolute", inset: 0, background: "linear-gradient(90deg, rgba(10,10,30,0.75) 0%, rgba(10,10,30,0.1) 60%)", display: "flex", alignItems: "center" }}>
+              <div style={{ padding: "0 48px" }}>
+                <h3 style={{ fontSize: 28, fontWeight: 800, color: "#fff", marginBottom: 12 }}>Ремонт при клиенте</h3>
+                <p style={{ fontSize: 16, color: "rgba(255,255,255,0.85)", maxWidth: 420, lineHeight: 1.6 }}>
+                  Вы можете наблюдать за процессом ремонта. Мы работаем честно и открыто.
+                </p>
               </div>
-              <div>
-                <div style={{ fontSize: 11, color: "rgba(100,140,200,0.7)", marginBottom: 5 }}>Должность</div>
-                <select className="input-neon w-full" value={newUserData.role} onChange={e => setNewUserData(d => ({ ...d, role: e.target.value }))}>
-                  {["Мастер", "Старший мастер", "Администратор", "Менеджер"].map(r => <option key={r} value={r}>{r}</option>)}
-                </select>
-              </div>
-              <div>
-                <div style={{ fontSize: 11, color: "rgba(100,140,200,0.7)", marginBottom: 5 }}>Телефон</div>
-                <input className="input-neon w-full" placeholder="+7 (___) ___-__-__" value={newUserData.phone} onChange={e => setNewUserData(d => ({ ...d, phone: e.target.value }))} />
-              </div>
-            </div>
-            <div className="flex gap-3 mt-5">
-              <button
-                className="neon-btn px-5 py-2 rounded flex-1"
-                onClick={() => {
-                  if (!newUserData.name.trim()) return;
-                  const newStaff: Staff = { id: `С-00${staff.length + 1}`, name: newUserData.name.trim(), role: newUserData.role, phone: newUserData.phone, ordersActive: 0, ordersTotal: 0, rating: 5.0 };
-                  setStaff([...staff, newStaff]);
-                  setCurrentUser(newStaff);
-                  setNewUserData({ name: "", role: "Мастер", phone: "" });
-                  setShowNewUserForm(false);
-                }}
-              >Добавить и войти</button>
-              <button onClick={() => setShowNewUserForm(false)} style={{ padding: "8px 16px", background: "transparent", border: "1px solid rgba(0,80,200,0.3)", borderRadius: 6, color: "rgba(100,140,200,0.7)", cursor: "pointer", fontSize: 13 }}>Отмена</button>
             </div>
           </div>
         </div>
-      )}
+      </section>
+
+      {/* ========== ПРЕИМУЩЕСТВА ========== */}
+      <section style={{ padding: "80px 20px", background: "linear-gradient(135deg, #1a1a2e 0%, #16213e 100%)" }}>
+        <div style={{ maxWidth: 1200, margin: "0 auto" }}>
+          <div style={{ textAlign: "center", marginBottom: 56 }}>
+            <div style={{ fontSize: 13, fontWeight: 600, color: "#ff6b35", letterSpacing: "0.1em", marginBottom: 10, textTransform: "uppercase" }}>Почему нас выбирают</div>
+            <h2 style={{ fontSize: 38, fontWeight: 800, color: "#fff", marginBottom: 14, letterSpacing: "-0.3px" }}>Наши преимущества</h2>
+            <p style={{ fontSize: 17, color: "rgba(255,255,255,0.6)", maxWidth: 500, margin: "0 auto" }}>
+              Более 5 лет работаем в Находке. За это время завоевали доверие тысяч клиентов.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {advantages.map(adv => (
+              <div key={adv.title} style={{ background: "rgba(255,255,255,0.06)", borderRadius: 16, padding: 28, border: "1px solid rgba(255,255,255,0.1)", transition: "all 0.3s" }}
+                onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "rgba(232,68,10,0.15)"; (e.currentTarget as HTMLElement).style.borderColor = "rgba(232,68,10,0.4)"; }}
+                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "rgba(255,255,255,0.06)"; (e.currentTarget as HTMLElement).style.borderColor = "rgba(255,255,255,0.1)"; }}
+              >
+                <div style={{ width: 52, height: 52, borderRadius: 12, background: "rgba(232,68,10,0.2)", display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 18 }}>
+                  <Icon name={adv.icon as string} size={24} style={{ color: "#ff6b35" }} />
+                </div>
+                <h3 style={{ fontSize: 17, fontWeight: 700, color: "#fff", marginBottom: 10 }}>{adv.title}</h3>
+                <p style={{ fontSize: 14, color: "rgba(255,255,255,0.6)", lineHeight: 1.6 }}>{adv.desc}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ========== ЦЕНЫ ========== */}
+      <section id="prices" style={{ padding: "80px 20px", background: "#f8f9fb" }}>
+        <div style={{ maxWidth: 1200, margin: "0 auto" }}>
+          <div style={{ textAlign: "center", marginBottom: 56 }}>
+            <div style={{ fontSize: 13, fontWeight: 600, color: "#e8440a", letterSpacing: "0.1em", marginBottom: 10, textTransform: "uppercase" }}>Прозрачно и честно</div>
+            <h2 style={{ fontSize: 38, fontWeight: 800, color: "#1a1a2e", marginBottom: 14, letterSpacing: "-0.3px" }}>Примерные цены</h2>
+            <p style={{ fontSize: 17, color: "#666", maxWidth: 500, margin: "0 auto", lineHeight: 1.6 }}>
+              Точная стоимость определяется после бесплатной диагностики. Ремонт только с вашего согласия.
+            </p>
+          </div>
+
+          <div style={{ background: "#fff", borderRadius: 20, overflow: "hidden", boxShadow: "0 8px 40px rgba(0,0,0,0.08)", border: "1px solid #eee" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse" }}>
+              <thead>
+                <tr style={{ background: "linear-gradient(135deg, #e8440a, #ff6b35)" }}>
+                  <th style={{ padding: "16px 24px", textAlign: "left", color: "#fff", fontSize: 14, fontWeight: 600 }}>Устройство</th>
+                  <th style={{ padding: "16px 24px", textAlign: "left", color: "#fff", fontSize: 14, fontWeight: 600 }}>Вид работы</th>
+                  <th style={{ padding: "16px 24px", textAlign: "right", color: "#fff", fontSize: 14, fontWeight: 600 }}>Стоимость</th>
+                </tr>
+              </thead>
+              <tbody>
+                {priceList.map((row, index) => (
+                  <tr key={index} style={{ borderBottom: "1px solid #f0f0f0", background: index % 2 === 0 ? "#fff" : "#fafafa" }}>
+                    <td style={{ padding: "14px 24px", fontSize: 14, fontWeight: 600, color: "#1a1a2e" }}>{row.device}</td>
+                    <td style={{ padding: "14px 24px", fontSize: 14, color: "#555" }}>{row.service}</td>
+                    <td style={{ padding: "14px 24px", fontSize: 15, fontWeight: 700, color: "#e8440a", textAlign: "right" }}>{row.price}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          <div style={{ textAlign: "center", marginTop: 32 }}>
+            <p style={{ fontSize: 14, color: "#999", marginBottom: 20 }}>Не нашли свою услугу? Свяжитесь с нами — рассчитаем стоимость индивидуально</p>
+            <button
+              onClick={() => scrollTo("contacts")}
+              style={{ background: "#e8440a", color: "#fff", border: "none", borderRadius: 10, padding: "14px 32px", fontSize: 15, fontWeight: 600, cursor: "pointer", transition: "all 0.2s" }}
+              onMouseEnter={e => (e.currentTarget.style.background = "#c73709")}
+              onMouseLeave={e => (e.currentTarget.style.background = "#e8440a")}
+            >
+              Узнать стоимость
+            </button>
+          </div>
+        </div>
+      </section>
+
+      {/* ========== ОТЗЫВЫ ========== */}
+      <section id="reviews" style={{ padding: "80px 20px", background: "#fff" }}>
+        <div style={{ maxWidth: 1200, margin: "0 auto" }}>
+          <div style={{ textAlign: "center", marginBottom: 56 }}>
+            <div style={{ fontSize: 13, fontWeight: 600, color: "#e8440a", letterSpacing: "0.1em", marginBottom: 10, textTransform: "uppercase" }}>Что говорят клиенты</div>
+            <h2 style={{ fontSize: 38, fontWeight: 800, color: "#1a1a2e", marginBottom: 14, letterSpacing: "-0.3px" }}>Отзывы</h2>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {reviews.map((review, index) => (
+              <div key={index} style={{ background: "#f8f9fb", borderRadius: 16, padding: 28, border: "1px solid #eee" }}>
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-3">
+                    <div style={{ width: 46, height: 46, borderRadius: "50%", background: "linear-gradient(135deg, #e8440a, #ff6b35)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                      <span style={{ fontSize: 18, fontWeight: 700, color: "#fff" }}>{review.name[0]}</span>
+                    </div>
+                    <div>
+                      <div style={{ fontSize: 15, fontWeight: 700, color: "#1a1a2e" }}>{review.name}</div>
+                      <div style={{ fontSize: 12, color: "#999" }}>{review.device}</div>
+                    </div>
+                  </div>
+                  <div style={{ fontSize: 16, color: "#f59e0b" }}>{"★".repeat(review.rating)}</div>
+                </div>
+                <p style={{ fontSize: 14, color: "#555", lineHeight: 1.7 }}>"{review.text}"</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ========== ФОРМА / КОНТАКТЫ ========== */}
+      <section id="contacts" style={{ padding: "80px 20px", background: "#f8f9fb" }}>
+        <div style={{ maxWidth: 1200, margin: "0 auto" }}>
+          <div style={{ textAlign: "center", marginBottom: 56 }}>
+            <div style={{ fontSize: 13, fontWeight: 600, color: "#e8440a", letterSpacing: "0.1em", marginBottom: 10, textTransform: "uppercase" }}>Мы на связи</div>
+            <h2 style={{ fontSize: 38, fontWeight: 800, color: "#1a1a2e", marginBottom: 14, letterSpacing: "-0.3px" }}>Связаться с нами</h2>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
+            {/* Форма */}
+            <div style={{ background: "#fff", borderRadius: 20, padding: 40, boxShadow: "0 8px 40px rgba(0,0,0,0.08)", border: "1px solid #eee" }}>
+              <h3 style={{ fontSize: 22, fontWeight: 700, color: "#1a1a2e", marginBottom: 8 }}>Оставить заявку</h3>
+              <p style={{ fontSize: 14, color: "#888", marginBottom: 28 }}>Перезвоним в течение 15 минут и ответим на все вопросы</p>
+
+              {formSent ? (
+                <div style={{ textAlign: "center", padding: "40px 0" }}>
+                  <div style={{ width: 70, height: 70, borderRadius: "50%", background: "linear-gradient(135deg, #e8440a, #ff6b35)", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 20px" }}>
+                    <Icon name="Check" size={32} style={{ color: "#fff" }} />
+                  </div>
+                  <h4 style={{ fontSize: 20, fontWeight: 700, color: "#1a1a2e", marginBottom: 8 }}>Заявка принята!</h4>
+                  <p style={{ fontSize: 15, color: "#666" }}>Перезвоним вам в ближайшее время</p>
+                </div>
+              ) : (
+                <form onSubmit={handleSubmit}>
+                  <div style={{ marginBottom: 18 }}>
+                    <label style={{ display: "block", fontSize: 13, fontWeight: 600, color: "#444", marginBottom: 7 }}>Ваше имя *</label>
+                    <input
+                      type="text"
+                      placeholder="Иван Иванов"
+                      value={formData.name}
+                      onChange={e => setFormData({ ...formData, name: e.target.value })}
+                      required
+                      style={{ width: "100%", padding: "12px 16px", borderRadius: 10, border: "1.5px solid #e0e0e0", fontSize: 15, outline: "none", transition: "border 0.2s", boxSizing: "border-box" }}
+                      onFocus={e => (e.currentTarget.style.borderColor = "#e8440a")}
+                      onBlur={e => (e.currentTarget.style.borderColor = "#e0e0e0")}
+                    />
+                  </div>
+                  <div style={{ marginBottom: 18 }}>
+                    <label style={{ display: "block", fontSize: 13, fontWeight: 600, color: "#444", marginBottom: 7 }}>Телефон *</label>
+                    <input
+                      type="tel"
+                      placeholder="+7 (___) ___-__-__"
+                      value={formData.phone}
+                      onChange={e => setFormData({ ...formData, phone: e.target.value })}
+                      required
+                      style={{ width: "100%", padding: "12px 16px", borderRadius: 10, border: "1.5px solid #e0e0e0", fontSize: 15, outline: "none", transition: "border 0.2s", boxSizing: "border-box" }}
+                      onFocus={e => (e.currentTarget.style.borderColor = "#e8440a")}
+                      onBlur={e => (e.currentTarget.style.borderColor = "#e0e0e0")}
+                    />
+                  </div>
+                  <div style={{ marginBottom: 18 }}>
+                    <label style={{ display: "block", fontSize: 13, fontWeight: 600, color: "#444", marginBottom: 7 }}>Устройство</label>
+                    <input
+                      type="text"
+                      placeholder="Например: iPhone 14, ноутбук ASUS..."
+                      value={formData.device}
+                      onChange={e => setFormData({ ...formData, device: e.target.value })}
+                      style={{ width: "100%", padding: "12px 16px", borderRadius: 10, border: "1.5px solid #e0e0e0", fontSize: 15, outline: "none", transition: "border 0.2s", boxSizing: "border-box" }}
+                      onFocus={e => (e.currentTarget.style.borderColor = "#e8440a")}
+                      onBlur={e => (e.currentTarget.style.borderColor = "#e0e0e0")}
+                    />
+                  </div>
+                  <div style={{ marginBottom: 28 }}>
+                    <label style={{ display: "block", fontSize: 13, fontWeight: 600, color: "#444", marginBottom: 7 }}>Опишите проблему</label>
+                    <textarea
+                      placeholder="Что случилось с устройством?"
+                      value={formData.problem}
+                      onChange={e => setFormData({ ...formData, problem: e.target.value })}
+                      rows={3}
+                      style={{ width: "100%", padding: "12px 16px", borderRadius: 10, border: "1.5px solid #e0e0e0", fontSize: 15, outline: "none", transition: "border 0.2s", resize: "none", boxSizing: "border-box" }}
+                      onFocus={e => (e.currentTarget.style.borderColor = "#e8440a")}
+                      onBlur={e => (e.currentTarget.style.borderColor = "#e0e0e0")}
+                    />
+                  </div>
+                  <button
+                    type="submit"
+                    style={{ width: "100%", background: "linear-gradient(135deg, #e8440a, #ff6b35)", color: "#fff", border: "none", borderRadius: 12, padding: "16px", fontSize: 16, fontWeight: 700, cursor: "pointer", boxShadow: "0 8px 25px rgba(232,68,10,0.35)", transition: "all 0.2s" }}
+                    onMouseEnter={e => (e.currentTarget.style.transform = "translateY(-2px)")}
+                    onMouseLeave={e => (e.currentTarget.style.transform = "translateY(0)")}
+                  >
+                    Отправить заявку
+                  </button>
+                  <p style={{ fontSize: 12, color: "#bbb", textAlign: "center", marginTop: 12 }}>Нажимая кнопку, вы соглашаетесь с политикой конфиденциальности</p>
+                </form>
+              )}
+            </div>
+
+            {/* Контактная информация */}
+            <div className="flex flex-col gap-5">
+              {[
+                { icon: "Phone", title: "Телефон", lines: ["+7 (4236) 00-12-34", "+7 (914) 000-12-34"], link: "tel:+74236001234" },
+                { icon: "Clock", title: "Время работы", lines: ["Пн–Вс: 9:00 – 21:00", "Без выходных"] },
+                { icon: "MapPin", title: "Адрес", lines: ["г. Находка, ул. Портовая 1", "ТЦ «Центральный», 1 этаж"] },
+                { icon: "MessageCircle", title: "Мессенджеры", lines: ["WhatsApp: +7 (914) 000-12-34", "Telegram: @technoexpert25"] },
+              ].map(contact => (
+                <div key={contact.title} style={{ background: "#fff", borderRadius: 16, padding: 24, boxShadow: "0 4px 20px rgba(0,0,0,0.06)", border: "1px solid #eee", display: "flex", gap: 18 }}>
+                  <div style={{ width: 50, height: 50, borderRadius: 12, background: "#fff4f0", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                    <Icon name={contact.icon as string} size={22} style={{ color: "#e8440a" }} />
+                  </div>
+                  <div>
+                    <div style={{ fontSize: 12, color: "#999", fontWeight: 600, marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.05em" }}>{contact.title}</div>
+                    {contact.lines.map(line => (
+                      <div key={line}>
+                        {contact.link ? (
+                          <a href={contact.link} style={{ fontSize: 16, fontWeight: 600, color: "#1a1a2e", textDecoration: "none", display: "block" }}
+                            onMouseEnter={e => (e.currentTarget.style.color = "#e8440a")}
+                            onMouseLeave={e => (e.currentTarget.style.color = "#1a1a2e")}
+                          >{line}</a>
+                        ) : (
+                          <div style={{ fontSize: 15, color: "#333", marginBottom: 2 }}>{line}</div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ========== ФУТЕР ========== */}
+      <footer style={{ background: "#1a1a2e", padding: "40px 20px" }}>
+        <div style={{ maxWidth: 1200, margin: "0 auto" }}>
+          <div className="flex flex-col md:flex-row items-center justify-between gap-6">
+            <div className="flex items-center gap-3">
+              <div style={{ width: 36, height: 36, borderRadius: 8, background: "linear-gradient(135deg, #e8440a, #ff6b35)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <Icon name="Wrench" size={18} style={{ color: "#fff" }} />
+              </div>
+              <div>
+                <div style={{ fontSize: 17, fontWeight: 800, color: "#fff" }}>Techno<span style={{ color: "#ff6b35" }}>Expert</span></div>
+                <div style={{ fontSize: 10, color: "rgba(255,255,255,0.4)" }}>Сервисный центр • Находка</div>
+              </div>
+            </div>
+
+            <div style={{ textAlign: "center" }}>
+              <div style={{ fontSize: 13, color: "rgba(255,255,255,0.5)" }}>© 2024 TechnoExpert. Все права защищены.</div>
+              <div style={{ fontSize: 12, color: "rgba(255,255,255,0.3)", marginTop: 4 }}>Ремонт телефонов, ноутбуков, ПК и приставок в Находке</div>
+            </div>
+
+            <a href="tel:+74236001234" style={{ textDecoration: "none" }}>
+              <div style={{ fontSize: 18, fontWeight: 700, color: "#ff6b35" }}>+7 (4236) 00-12-34</div>
+              <div style={{ fontSize: 11, color: "rgba(255,255,255,0.4)", textAlign: "right" }}>Пн–Вс 9:00–21:00</div>
+            </a>
+          </div>
+        </div>
+      </footer>
+
+      {/* Кнопка звонка (мобильная) */}
+      <a href="tel:+74236001234" className="md:hidden" style={{ position: "fixed", bottom: 20, right: 20, zIndex: 200, textDecoration: "none" }}>
+        <div style={{ width: 58, height: 58, borderRadius: "50%", background: "linear-gradient(135deg, #e8440a, #ff6b35)", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 6px 25px rgba(232,68,10,0.5)" }}>
+          <Icon name="Phone" size={24} style={{ color: "#fff" }} />
+        </div>
+      </a>
+
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Inter', sans-serif; }
+        @keyframes pulse {
+          0%, 100% { opacity: 1; }
+          50% { opacity: 0.4; }
+        }
+        .hidden { display: none; }
+        @media (min-width: 768px) {
+          .hidden.md\\:flex { display: flex; }
+          .hidden.md\\:block { display: block; }
+          .md\\:hidden { display: none !important; }
+        }
+      `}</style>
     </div>
   );
 }
